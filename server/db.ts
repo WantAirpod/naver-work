@@ -1,13 +1,16 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
-import * as schema from "@shared/schema";
+  import pg from "pg";
+  import * as schema from "@shared/schema";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set.");
-}
+  const connectionString = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
 
-export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+  if (!connectionString) {
+    throw new Error("DATABASE_URL must be set.");
+  }
 
-export const db = drizzle(pool, { schema });
+  export const pool = new pg.Pool({
+    connectionString,
+  });
+
+  export const db = drizzle(pool, { schema });
+  
