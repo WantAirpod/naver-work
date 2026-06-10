@@ -5,12 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function extractTicketNumber(url: string): string {
+export function extractTicketNumber(url: string | null | undefined): string {
+  if (!url) return "";
   const match = url.match(/\/(\d+)$/);
   return match ? match[1] : url;
 }
 
-export function extractRepoPath(url: string): string {
+export function extractRepoPath(url: string | null | undefined): string {
+  if (!url) return "";
   try {
     const urlObj = new URL(url);
     const parts = urlObj.pathname.split("/").filter(Boolean);
