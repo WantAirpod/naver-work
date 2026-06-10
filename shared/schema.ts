@@ -6,7 +6,7 @@ import { z } from "zod";
 export const tasks = pgTable("tasks", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   title: text("title").notNull(),
-  ticketUrl: text("ticket_url").notNull(),
+  ticketUrl: text("ticket_url"),
   ticketNumber: text("ticket_number").notNull(),
   description: text("description"),
   status: text("status").notNull().default("in_progress"),

@@ -61,6 +61,11 @@ async function main() {
       console.log("[bootstrap-db] schema already present, skipping migration");
     }
 
+    // Reconcile constraints that diverged from production (backup has nullable values)
+    await client.query(
+      `ALTER TABLE tasks ALTER COLUMN ticket_url DROP NOT NULL`,
+    );
+
     if (await tableEmpty(client, "tasks")) {
       const backupPath = path.join(
         __dirname,
