@@ -1,8 +1,19 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertTaskSchema, insertCommentSchema, insertTaskRelationSchema, insertFavoriteLinkSchema, insertTodoSchema, insertQuizQuestionSchema } from "@shared/schema";
+import { insertTaskSchema, insertCommentSchema, insertTaskPrSchema, insertTaskRelationSchema, insertFavoriteLinkSchema, insertTodoSchema, insertQuizQuestionSchema } from "@shared/schema";
 import { z } from "zod";
+
+// drizzle-zod는 date 문자열 컬럼에 형식 없는 z.string()만 생성하므로 직접 검증한다.
+// 정규식만으로는 2026-02-30을 통과시켜 Postgres가 500을 던지므로 실존 여부까지 본다.
+const ymdSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "배포일은 YYYY-MM-DD 형식이어야 합니다")
+  .refine((s) => {
+    const [y, m, d] = s.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+  }, "존재하지 않는 날짜입니다");
 
 const updateTaskSchema = z.object({
   title: z.string().optional(),
@@ -15,6 +26,12 @@ const updateTaskSchema = z.object({
   prUrl: z.string().nullable().optional(),
   isEpic: z.boolean().optional(),
   parentEpicId: z.number().int().nullable().optional(),
+  deployDate: ymdSchema.nullable().optional(),
+  milestoneRegistered: z.boolean().optional(),
+});
+
+const createTaskSchema = insertTaskSchema.extend({
+  deployDate: ymdSchema.nullable().optional(),
 });
 
 export async function registerRoutes(
@@ -33,7 +50,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/tasks", async (req, res) => {
-    const parsed = insertTaskSchema.safeParse(req.body);
+    const parsed = createTaskSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ message: parsed.error.message });
     }
@@ -111,6 +128,39 @@ export async function registerRoutes(
 
   app.delete("/api/comments/:id", async (req, res) => {
     await storage.deleteComment(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  app.get("/api/task-prs", async (_req, res) => {
+    const prs = await storage.getTaskPrs();
+    res.json(prs);
+  });
+
+  app.post("/api/task-prs", async (req, res) => {
+    const parsed = insertTaskPrSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.message });
+    }
+    const pr = await storage.createTaskPr(parsed.data);
+    res.status(201).json(pr);
+  });
+
+  app.patch("/api/task-prs/:id", async (req, res) => {
+    const updateSchema = z.object({
+      url: z.string().optional(),
+      reviewed: z.boolean().optional(),
+    });
+    const parsed = updateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.message });
+    }
+    const pr = await storage.updateTaskPr(Number(req.params.id), parsed.data);
+    if (!pr) return res.status(404).json({ message: "PR not found" });
+    res.json(pr);
+  });
+
+  app.delete("/api/task-prs/:id", async (req, res) => {
+    await storage.deleteTaskPr(Number(req.params.id));
     res.status(204).send();
   });
 

@@ -66,6 +66,22 @@ async function main() {
       `ALTER TABLE tasks ALTER COLUMN ticket_url DROP NOT NULL`,
     );
 
+    // Deploy-round feature. Migrations above only run on a missing `tasks` table,
+    // so schema additions have to be reconciled here to reach an existing database.
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deploy_date date`);
+    await client.query(
+      `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS milestone_registered boolean DEFAULT false NOT NULL`,
+    );
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_prs (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "task_id" integer NOT NULL,
+        "url" text NOT NULL,
+        "reviewed" boolean DEFAULT false NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      )
+    `);
+
     if (await tableEmpty(client, "tasks")) {
       const backupPath = path.join(
         __dirname,
@@ -82,6 +98,24 @@ async function main() {
       }
     } else {
       console.log("[bootstrap-db] data already present, skipping data load");
+    }
+
+    // One-shot move of legacy tasks.pr_url into task_prs. Must run after the backup
+    // load, otherwise a cold start migrates nothing and then imports pr_url values.
+    // Consuming the source is the idempotency guard: re-runs find nothing, and a PR
+    // the user deletes in the UI cannot be resurrected on the next deploy.
+    const { rowCount: migratedPrs } = await client.query(`
+      WITH moved AS (
+        INSERT INTO task_prs (task_id, url)
+        SELECT id, btrim(pr_url)
+        FROM tasks
+        WHERE pr_url IS NOT NULL AND btrim(pr_url) <> ''
+        RETURNING task_id
+      )
+      UPDATE tasks SET pr_url = NULL WHERE id IN (SELECT task_id FROM moved)
+    `);
+    if (migratedPrs > 0) {
+      console.log(`[bootstrap-db] migrated ${migratedPrs} pr_url value(s) into task_prs`);
     }
   } finally {
     await client.end();

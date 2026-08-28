@@ -7,12 +7,14 @@ import { ThemeProvider } from "@/components/theme-provider";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import QuizPage from "@/pages/quiz";
+import DeployPage from "@/pages/deploy";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/quiz" component={QuizPage} />
+      <Route path="/deploy" component={DeployPage} />
       <Route component={NotFound} />
     </Switch>
   );

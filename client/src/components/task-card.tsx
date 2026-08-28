@@ -17,13 +17,16 @@ import {
   ListTodo,
   ChevronRight,
   ChevronDown,
+  Rocket,
 } from "lucide-react";
 import { extractTicketNumber, extractRepoPath, formatDate, getPriorityConfig, cn } from "@/lib/utils";
+import { formatDeployDateLabel } from "@/lib/deploy-schedule";
 
 interface TaskCardProps {
   task: Task;
   comments: Comment[];
   relatedCount: number;
+  prCount?: number;
   childCount?: number;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -39,6 +42,7 @@ export function TaskCard({
   task,
   comments,
   relatedCount,
+  prCount,
   childCount,
   isExpanded,
   onToggleExpand,
@@ -239,10 +243,16 @@ export function TaskCard({
                 <span className="truncate max-w-[140px]">{repoPath}</span>
               </a>
             )}
-            {task.prUrl && (
+            {(prCount ?? 0) > 0 && (
               <span className="flex items-center gap-1 text-xs text-primary" data-testid={`text-pr-${task.id}`}>
                 <GitPullRequest className="w-3 h-3" />
-                PR
+                PR {prCount}
+              </span>
+            )}
+            {task.deployDate && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground" data-testid={`text-deploy-date-${task.id}`}>
+                <Rocket className="w-3 h-3" />
+                {formatDeployDateLabel(task.deployDate)}
               </span>
             )}
             {comments.length > 0 && (

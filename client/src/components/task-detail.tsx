@@ -1,11 +1,12 @@
 import { useState } from "react";
-import type { Task, Comment, TaskRelation } from "@shared/schema";
+import type { Task, Comment, TaskRelation, TaskPr } from "@shared/schema";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -34,6 +35,7 @@ import {
   ChevronDown,
   TreePine,
   ListTodo,
+  Rocket,
 } from "lucide-react";
 import {
   extractTicketNumber,
@@ -46,6 +48,7 @@ import {
 interface TaskDetailProps {
   task: Task;
   comments: Comment[];
+  taskPrs: TaskPr[];
   relatedTasks: Task[];
   allTasks: Task[];
   childTasks: Task[];
@@ -60,6 +63,9 @@ interface TaskDetailProps {
   onUpdateTask: (taskId: number, data: Record<string, any>) => void;
   onChangeStatus: (taskId: number, status: string) => void;
   onCreateAndRelate: (sourceTaskId: number, data: { title: string; ticketUrl: string; ticketNumber: string; priority: string }) => void;
+  onAddPr: (taskId: number, url: string) => void;
+  onRemovePr: (prId: number) => void;
+  onTogglePrReviewed: (prId: number, reviewed: boolean) => void;
   isAddingComment?: boolean;
   isCreatingRelation?: boolean;
 }
@@ -67,6 +73,7 @@ interface TaskDetailProps {
 export function TaskDetail({
   task,
   comments,
+  taskPrs,
   relatedTasks,
   allTasks,
   childTasks,
@@ -81,6 +88,9 @@ export function TaskDetail({
   onUpdateTask,
   onChangeStatus,
   onCreateAndRelate,
+  onAddPr,
+  onRemovePr,
+  onTogglePrReviewed,
   isAddingComment,
   isCreatingRelation,
 }: TaskDetailProps) {
@@ -333,7 +343,7 @@ export function TaskDetail({
                 <GitPullRequest className="w-4 h-4 text-muted-foreground" />
                 Pull Request
               </h3>
-              {!task.prUrl && !showPrInput && (
+              {!showPrInput && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -355,9 +365,8 @@ export function TaskDetail({
                   className="text-sm flex-1"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && prUrlInput.trim()) {
-                      onUpdateTask(task.id, { prUrl: prUrlInput.trim() });
+                      onAddPr(task.id, prUrlInput.trim());
                       setPrUrlInput("");
-                      setShowPrInput(false);
                     }
                   }}
                   data-testid="input-pr-url"
@@ -366,9 +375,8 @@ export function TaskDetail({
                   size="sm"
                   onClick={() => {
                     if (prUrlInput.trim()) {
-                      onUpdateTask(task.id, { prUrl: prUrlInput.trim() });
+                      onAddPr(task.id, prUrlInput.trim());
                       setPrUrlInput("");
-                      setShowPrInput(false);
                     }
                   }}
                   disabled={!prUrlInput.trim()}
@@ -385,35 +393,86 @@ export function TaskDetail({
                   }}
                   data-testid="button-cancel-pr"
                 >
-                  취소
+                  닫기
                 </Button>
               </div>
             )}
 
-            {task.prUrl ? (
-              <div className="flex items-center gap-2 p-2.5 rounded-md border" data-testid="card-pr-url">
-                <GitPullRequest className="w-4 h-4 text-primary shrink-0" />
-                <a
-                  href={task.prUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary font-medium truncate flex-1 hover:underline"
-                  data-testid="link-pr-url"
-                >
-                  {task.prUrl.replace(/^https?:\/\/(www\.)?/, "")}
-                </a>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => onUpdateTask(task.id, { prUrl: null })}
-                  data-testid="button-remove-pr"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
+            {taskPrs.length > 0 ? (
+              <div className="space-y-2">
+                {taskPrs.map((pr) => (
+                  <div
+                    key={pr.id}
+                    className="flex items-center gap-2 p-2.5 rounded-md border"
+                    data-testid={`card-pr-${pr.id}`}
+                  >
+                    <GitPullRequest className="w-4 h-4 text-primary shrink-0" />
+                    <a
+                      href={pr.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary font-medium truncate flex-1 hover:underline"
+                      data-testid={`link-pr-${pr.id}`}
+                    >
+                      {pr.url.replace(/^https?:\/\/(www\.)?/, "")}
+                    </a>
+                    <label className="flex items-center gap-1.5 shrink-0 cursor-pointer">
+                      <Checkbox
+                        checked={pr.reviewed}
+                        onCheckedChange={(checked) => onTogglePrReviewed(pr.id, checked === true)}
+                        data-testid={`checkbox-pr-reviewed-${pr.id}`}
+                      />
+                      <span className="text-xs text-muted-foreground">리뷰</span>
+                    </label>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => onRemovePr(pr.id)}
+                      data-testid={`button-remove-pr-${pr.id}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             ) : !showPrInput ? (
               <p className="text-xs text-muted-foreground py-2">등록된 PR이 없습니다</p>
             ) : null}
+          </div>
+
+          <Separator />
+
+          <div>
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold mb-3">
+              <Rocket className="w-4 h-4 text-muted-foreground" />
+              배포
+            </h3>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                  배포일
+                </label>
+                <Input
+                  type="date"
+                  value={task.deployDate ?? ""}
+                  onChange={(e) =>
+                    onUpdateTask(task.id, { deployDate: e.target.value || null })
+                  }
+                  className="text-sm w-40"
+                  data-testid="input-deploy-date"
+                />
+              </div>
+              <label className="flex items-center gap-1.5 cursor-pointer mt-5">
+                <Checkbox
+                  checked={task.milestoneRegistered}
+                  onCheckedChange={(checked) =>
+                    onUpdateTask(task.id, { milestoneRegistered: checked === true })
+                  }
+                  data-testid="checkbox-milestone"
+                />
+                <span className="text-xs">마일스톤 등록</span>
+              </label>
+            </div>
           </div>
 
           <Separator />

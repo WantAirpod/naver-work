@@ -1,6 +1,7 @@
 import {
   tasks,
   comments,
+  taskPrs,
   taskRelations,
   favoriteLinks,
   todos,
@@ -9,6 +10,8 @@ import {
   type InsertTask,
   type Comment,
   type InsertComment,
+  type TaskPr,
+  type InsertTaskPr,
   type TaskRelation,
   type InsertTaskRelation,
   type FavoriteLink,
@@ -33,6 +36,11 @@ export interface IStorage {
   getCommentsByTask(taskId: number): Promise<Comment[]>;
   createComment(comment: InsertComment): Promise<Comment>;
   deleteComment(id: number): Promise<void>;
+
+  getTaskPrs(): Promise<TaskPr[]>;
+  createTaskPr(pr: InsertTaskPr): Promise<TaskPr>;
+  updateTaskPr(id: number, data: Partial<InsertTaskPr>): Promise<TaskPr | undefined>;
+  deleteTaskPr(id: number): Promise<void>;
 
   getRelations(): Promise<TaskRelation[]>;
   createRelation(relation: InsertTaskRelation): Promise<TaskRelation>;
@@ -86,6 +94,7 @@ export class DatabaseStorage implements IStorage {
   async deleteTask(id: number): Promise<void> {
     await db.update(tasks).set({ parentEpicId: null }).where(eq(tasks.parentEpicId, id));
     await db.delete(comments).where(eq(comments.taskId, id));
+    await db.delete(taskPrs).where(eq(taskPrs.taskId, id));
     await db.delete(taskRelations).where(
       or(eq(taskRelations.sourceTaskId, id), eq(taskRelations.targetTaskId, id))
     );
@@ -107,6 +116,24 @@ export class DatabaseStorage implements IStorage {
 
   async deleteComment(id: number): Promise<void> {
     await db.delete(comments).where(eq(comments.id, id));
+  }
+
+  async getTaskPrs(): Promise<TaskPr[]> {
+    return db.select().from(taskPrs).orderBy(asc(taskPrs.id));
+  }
+
+  async createTaskPr(pr: InsertTaskPr): Promise<TaskPr> {
+    const [created] = await db.insert(taskPrs).values(pr).returning();
+    return created;
+  }
+
+  async updateTaskPr(id: number, data: Partial<InsertTaskPr>): Promise<TaskPr | undefined> {
+    const [updated] = await db.update(taskPrs).set(data).where(eq(taskPrs.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTaskPr(id: number): Promise<void> {
+    await db.delete(taskPrs).where(eq(taskPrs.id, id));
   }
 
   async getRelations(): Promise<TaskRelation[]> {

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Task, Comment, TaskRelation } from "@shared/schema";
+import type { Task, Comment, TaskRelation, TaskPr } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,6 +32,7 @@ import {
   Terminal,
   Crown,
   TreePine,
+  Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { extractTicketNumber, getPriorityConfig } from "@/lib/utils";
@@ -60,6 +61,10 @@ export default function Home() {
 
   const { data: relations = [] } = useQuery<TaskRelation[]>({
     queryKey: ["/api/relations"],
+  });
+
+  const { data: taskPrs = [] } = useQuery<TaskPr[]>({
+    queryKey: ["/api/task-prs"],
   });
 
   const createTaskMutation = useMutation({
@@ -113,6 +118,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/comments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/relations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/task-prs"] });
       setSelectedTask(null);
       toast({ title: "작업이 삭제되었습니다" });
     },
@@ -157,6 +163,40 @@ export default function Home() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+    },
+  });
+
+  const addPrMutation = useMutation({
+    mutationFn: async ({ taskId, url }: { taskId: number; url: string }) => {
+      const res = await apiRequest("POST", "/api/task-prs", { taskId, url });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/task-prs"] });
+      toast({ title: "PR이 추가되었습니다" });
+    },
+    onError: () => {
+      toast({ title: "PR 추가에 실패했습니다", variant: "destructive" });
+    },
+  });
+
+  const removePrMutation = useMutation({
+    mutationFn: async (prId: number) => {
+      await apiRequest("DELETE", `/api/task-prs/${prId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/task-prs"] });
+      toast({ title: "PR이 제거되었습니다" });
+    },
+  });
+
+  const togglePrReviewedMutation = useMutation({
+    mutationFn: async ({ prId, reviewed }: { prId: number; reviewed: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/task-prs/${prId}`, { reviewed });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/task-prs"] });
     },
   });
 
@@ -317,6 +357,9 @@ export default function Home() {
   const getRelatedCount = (taskId: number) =>
     relations.filter((r) => r.sourceTaskId === taskId || r.targetTaskId === taskId).length;
 
+  const getPrsForTask = (taskId: number) =>
+    taskPrs.filter((p) => p.taskId === taskId);
+
   const getChildTasks = (taskId: number) =>
     tasks.filter((t) => t.parentEpicId === taskId);
 
@@ -370,6 +413,7 @@ export default function Home() {
               task={task}
               comments={getCommentsForTask(task.id)}
               relatedCount={getRelatedCount(task.id)}
+              prCount={getPrsForTask(task.id).length}
               childCount={allChildren.length}
               isExpanded={isExpanded}
               onToggleExpand={task.isEpic && allChildren.length > 0 ? () => toggleEpicExpanded(task.id) : undefined}
@@ -438,6 +482,16 @@ export default function Home() {
               >
                 <Terminal className="w-4 h-4 mr-1" />
                 퀴즈
+              </Button>
+            </Link>
+            <Link href="/deploy">
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="button-deploy-link"
+              >
+                <Rocket className="w-4 h-4 mr-1" />
+                배포
               </Button>
             </Link>
             <Button
@@ -593,6 +647,7 @@ export default function Home() {
               <TaskDetail
                 task={selectedTask}
                 comments={getCommentsForTask(selectedTask.id)}
+                taskPrs={getPrsForTask(selectedTask.id)}
                 relatedTasks={getRelatedTasks(selectedTask.id)}
                 allTasks={tasks}
                 childTasks={getChildTasks(selectedTask.id)}
@@ -623,6 +678,11 @@ export default function Home() {
                 }
                 onCreateAndRelate={(sourceTaskId, data) =>
                   createAndRelateMutation.mutate({ sourceTaskId, data })
+                }
+                onAddPr={(taskId, url) => addPrMutation.mutate({ taskId, url })}
+                onRemovePr={(prId) => removePrMutation.mutate(prId)}
+                onTogglePrReviewed={(prId, reviewed) =>
+                  togglePrReviewedMutation.mutate({ prId, reviewed })
                 }
                 isAddingComment={addCommentMutation.isPending}
                 isCreatingRelation={createAndRelateMutation.isPending}
