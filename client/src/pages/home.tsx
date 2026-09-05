@@ -33,6 +33,7 @@ import {
   Crown,
   TreePine,
   Rocket,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { extractTicketNumber, getPriorityConfig } from "@/lib/utils";
@@ -492,6 +493,12 @@ export default function Home() {
               >
                 <Rocket className="w-4 h-4 mr-1" />
                 배포
+              </Button>
+            </Link>
+            <Link href="/office">
+              <Button variant="outline" size="sm" data-testid="button-office-link">
+                <Building2 className="w-4 h-4 mr-1" />
+                출근
               </Button>
             </Link>
             <Button
