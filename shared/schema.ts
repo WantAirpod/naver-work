@@ -7,6 +7,7 @@ export const tasks = pgTable("tasks", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   title: text("title").notNull(),
   ticketUrl: text("ticket_url"),
+  referenceUrl: text("reference_url"),
   ticketNumber: text("ticket_number").notNull(),
   description: text("description"),
   status: text("status").notNull().default("in_progress"),
@@ -19,6 +20,8 @@ export const tasks = pgTable("tasks", {
   // 문자열 모드(YYYY-MM-DD). mode:"date"는 toISOString()으로 KST 자정이 전날로 밀린다.
   deployDate: date("deploy_date"),
   milestoneRegistered: boolean("milestone_registered").notNull().default(false),
+  qaCompleted: boolean("qa_completed").notNull().default(false),
+  codeReviewCompleted: boolean("code_review_completed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
 });
@@ -89,6 +92,8 @@ export type FavoriteLink = typeof favoriteLinks.$inferSelect;
 export const todos = pgTable("todos", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   content: text("content").notNull(),
+  url: text("url"),
+  todoDate: date("todo_date").notNull().default(sql`CURRENT_DATE`),
   completed: boolean("completed").notNull().default(false),
   color: text("color").notNull().default("yellow"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

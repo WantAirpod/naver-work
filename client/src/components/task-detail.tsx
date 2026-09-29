@@ -316,6 +316,18 @@ export function TaskDetail({
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
+                {isTodo && task.referenceUrl && (
+                  <a
+                    href={task.referenceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-primary font-medium transition-colors hover:underline"
+                    data-testid="link-detail-todo-reference"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    관련 링크 열기
+                  </a>
+                )}
                 {!isTodo && (
                   <a
                     href={task.ticketUrl}

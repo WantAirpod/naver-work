@@ -18,6 +18,7 @@ const ymdSchema = z
 const updateTaskSchema = z.object({
   title: z.string().optional(),
   ticketUrl: z.string().optional(),
+  referenceUrl: z.string().url().nullable().optional(),
   ticketNumber: z.string().optional(),
   description: z.string().nullable().optional(),
   status: z.enum(["backlog", "in_progress", "review", "completed"]).optional(),
@@ -28,6 +29,8 @@ const updateTaskSchema = z.object({
   parentEpicId: z.number().int().nullable().optional(),
   deployDate: ymdSchema.nullable().optional(),
   milestoneRegistered: z.boolean().optional(),
+  qaCompleted: z.boolean().optional(),
+  codeReviewCompleted: z.boolean().optional(),
 });
 
 const createTaskSchema = insertTaskSchema.extend({
@@ -217,7 +220,11 @@ export async function registerRoutes(
   });
 
   app.get("/api/todos", async (_req, res) => {
-    const allTodos = await storage.getTodos();
+    const date = typeof _req.query.date === "string" ? _req.query.date : undefined;
+    if (date && !ymdSchema.safeParse(date).success) {
+      return res.status(400).json({ message: "날짜는 YYYY-MM-DD 형식이어야 합니다" });
+    }
+    const allTodos = await storage.getTodos(date);
     res.json(allTodos);
   });
 
@@ -233,6 +240,8 @@ export async function registerRoutes(
   app.patch("/api/todos/:id", async (req, res) => {
     const updateSchema = z.object({
       content: z.string().optional(),
+      url: z.string().url().nullable().optional(),
+      todoDate: ymdSchema.optional(),
       completed: z.boolean().optional(),
       color: z.string().optional(),
     });

@@ -72,6 +72,21 @@ async function main() {
     await client.query(
       `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS milestone_registered boolean DEFAULT false NOT NULL`,
     );
+    await client.query(
+      `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS qa_completed boolean DEFAULT false NOT NULL`,
+    );
+    await client.query(
+      `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS code_review_completed boolean DEFAULT false NOT NULL`,
+    );
+    await client.query(
+      `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS reference_url text`,
+    );
+    await client.query(
+      `ALTER TABLE todos ADD COLUMN IF NOT EXISTS url text`,
+    );
+    await client.query(
+      `ALTER TABLE todos ADD COLUMN IF NOT EXISTS todo_date date DEFAULT CURRENT_DATE NOT NULL`,
+    );
     await client.query(`
       CREATE TABLE IF NOT EXISTS task_prs (
         "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,

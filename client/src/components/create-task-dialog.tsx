@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 const formSchema = z.object({
   title: z.string().min(1, "제목을 입력하세요"),
   ticketUrl: z.string().optional(),
+  referenceUrl: z.string().optional(),
   description: z.string().optional(),
   priority: z.enum(["high", "medium", "low"]),
   status: z.enum(["backlog", "in_progress", "review"]),
@@ -37,13 +38,19 @@ type FormData = z.infer<typeof formSchema>;
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { title: string; ticketUrl: string; ticketNumber: string; description?: string; priority: string; status: string }) => void;
+  onSubmit: (data: { title: string; ticketUrl: string; referenceUrl?: string | null; ticketNumber: string; description?: string; priority: string; status: string }) => void;
   isPending?: boolean;
 }
 
 function extractTicketNum(url: string): string {
   const match = url.match(/\/(\d+)$/);
   return match ? match[1] : "";
+}
+
+function normalizeUrl(url?: string): string | null {
+  const value = url?.trim();
+  if (!value) return null;
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
 }
 
 export function CreateTaskDialog({
@@ -59,6 +66,7 @@ export function CreateTaskDialog({
     defaultValues: {
       title: "",
       ticketUrl: "",
+      referenceUrl: "",
       description: "",
       priority: "medium",
       status: "in_progress",
@@ -77,6 +85,7 @@ export function CreateTaskDialog({
       onSubmit({
         title: data.title,
         ticketUrl: "",
+        referenceUrl: normalizeUrl(data.referenceUrl),
         ticketNumber: "TODO",
         description: data.description,
         priority: data.priority,
@@ -171,12 +180,19 @@ export function CreateTaskDialog({
             )}
 
             {mode === "todo" && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-                <ListTodo className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  이슈 URL 없이 간단한 Todo 작업을 등록합니다
-                </p>
-              </div>
+              <FormField
+                control={form.control}
+                name="referenceUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>관련 URL (선택)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://..." {...field} data-testid="input-todo-reference-url" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
 
             <FormField

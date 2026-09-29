@@ -27,6 +27,7 @@ import {
   GitPullRequest,
   Crown,
   Plus,
+  ListTodo,
   X,
 } from "lucide-react";
 import { extractTicketNumber, extractRepoPath, cn } from "@/lib/utils";
@@ -114,7 +115,13 @@ export default function DeployPage() {
 
   const isReady = (task: Task) => {
     const prs = prsByTask.get(task.id) ?? [];
-    return task.milestoneRegistered && prs.length > 0 && prs.every((p) => p.reviewed);
+    return (
+      task.milestoneRegistered &&
+      task.qaCompleted &&
+      task.codeReviewCompleted &&
+      prs.length > 0 &&
+      prs.every((p) => p.reviewed)
+    );
   };
 
   const readyCount = roundTasks.filter(isReady).length;
@@ -148,14 +155,18 @@ export default function DeployPage() {
               배포 회차
             </h1>
           </div>
-          <Button
-            size="sm"
-            onClick={() => setShowPicker((v) => !v)}
-            data-testid="button-toggle-picker"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            티켓 추가
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link href="/todos">
+              <Button variant="outline" size="sm" data-testid="button-todos-link">
+                <ListTodo className="w-4 h-4 mr-1" />
+                할 일
+              </Button>
+            </Link>
+            <Button size="sm" onClick={() => setShowPicker((v) => !v)} data-testid="button-toggle-picker">
+              <Plus className="w-4 h-4 mr-1" />
+              티켓 추가
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -287,6 +298,8 @@ export default function DeployPage() {
                     <TableHead className="w-14 text-center">OSS</TableHead>
                     <TableHead className="w-44">git</TableHead>
                     <TableHead className="w-20 text-center">마일스톤</TableHead>
+                    <TableHead className="w-20 text-center">QA 완료</TableHead>
+                    <TableHead className="w-24 text-center">Code Review</TableHead>
                     <TableHead className="w-20 text-center">PR리뷰</TableHead>
                     <TableHead className="w-40">배포일</TableHead>
                   </TableRow>
@@ -369,6 +382,28 @@ export default function DeployPage() {
                               })
                             }
                             data-testid={`checkbox-milestone-${task.id}`}
+                          />
+                        </TableCell>
+
+                        <TableCell className="align-top text-center">
+                          <Checkbox
+                            checked={task.qaCompleted}
+                            onCheckedChange={(checked) =>
+                              updateTaskMutation.mutate({ taskId: task.id, data: { qaCompleted: checked === true } })
+                            }
+                            aria-label={`${task.title} QA 완료`}
+                            data-testid={`checkbox-qa-${task.id}`}
+                          />
+                        </TableCell>
+
+                        <TableCell className="align-top text-center">
+                          <Checkbox
+                            checked={task.codeReviewCompleted}
+                            onCheckedChange={(checked) =>
+                              updateTaskMutation.mutate({ taskId: task.id, data: { codeReviewCompleted: checked === true } })
+                            }
+                            aria-label={`${task.title} Code Review 완료`}
+                            data-testid={`checkbox-code-review-${task.id}`}
                           />
                         </TableCell>
 

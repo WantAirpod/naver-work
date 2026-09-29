@@ -475,6 +475,12 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            <Link href="/todos">
+              <Button variant="outline" size="sm" data-testid="button-todos-link">
+                <ListTodo className="w-4 h-4 mr-1" />
+                할 일
+              </Button>
+            </Link>
             <Link href="/quiz">
               <Button
                 variant="outline"

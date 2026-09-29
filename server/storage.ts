@@ -51,7 +51,7 @@ export interface IStorage {
   updateFavoriteLink(id: number, data: Partial<InsertFavoriteLink>): Promise<FavoriteLink | undefined>;
   deleteFavoriteLink(id: number): Promise<void>;
 
-  getTodos(): Promise<Todo[]>;
+  getTodos(date?: string): Promise<Todo[]>;
   createTodo(todo: InsertTodo): Promise<Todo>;
   updateTodo(id: number, data: Partial<InsertTodo>): Promise<Todo | undefined>;
   deleteTodo(id: number): Promise<void>;
@@ -172,8 +172,11 @@ export class DatabaseStorage implements IStorage {
     await db.delete(favoriteLinks).where(eq(favoriteLinks.id, id));
   }
 
-  async getTodos(): Promise<Todo[]> {
-    return db.select().from(todos).orderBy(todos.createdAt);
+  async getTodos(date?: string): Promise<Todo[]> {
+    const query = db.select().from(todos);
+    return date
+      ? query.where(eq(todos.todoDate, date)).orderBy(todos.createdAt)
+      : query.orderBy(todos.createdAt);
   }
 
   async createTodo(todo: InsertTodo): Promise<Todo> {

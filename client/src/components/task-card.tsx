@@ -230,6 +230,19 @@ export function TaskCard({
 
         <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t flex-wrap">
           <div className="flex items-center gap-3">
+            {isTodo && task.referenceUrl && (
+              <a
+                href={task.referenceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
+                data-testid={`link-todo-reference-${task.id}`}
+              >
+                <ExternalLink className="w-3 h-3" />
+                관련 링크
+              </a>
+            )}
             {!isTodo && (
               <a
                 href={task.ticketUrl}
