@@ -42,6 +42,7 @@ export function TodoBoard() {
   const [url, setUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const today = toYmd(new Date());
+  const previousDate = moveDate(today, -1);
   const [selectedDate, setSelectedDate] = useState(today);
   const todosQueryKey = ["/api/todos", selectedDate];
 
@@ -52,6 +53,16 @@ export function TodoBoard() {
       if (!res.ok) throw new Error("Todo 목록을 불러오지 못했습니다");
       return res.json();
     },
+  });
+
+  const { data: previousTodos = [] } = useQuery<Todo[]>({
+    queryKey: ["/api/todos", previousDate],
+    queryFn: async () => {
+      const res = await fetch(`/api/todos?date=${previousDate}`, { credentials: "include" });
+      if (!res.ok) throw new Error("이전 Todo 목록을 불러오지 못했습니다");
+      return res.json();
+    },
+    enabled: selectedDate === today,
   });
 
   const createMutation = useMutation({
@@ -123,7 +134,7 @@ export function TodoBoard() {
         const movedIds = new Set(moved.map((todo) => todo.id));
         return [...current.filter((todo) => !movedIds.has(todo.id)), ...moved];
       });
-      toast({ title: moved.length ? `${moved.length}건을 내일로 전달했습니다` : "전달할 미완료 항목이 없습니다" });
+      toast({ title: moved.length ? `${moved.length}건을 선택한 날짜로 전달했습니다` : "전달할 미완료 항목이 없습니다" });
     },
     onError: (_error, _variables, context) => {
       queryClient.setQueryData(context?.fromKey ?? todosQueryKey, context?.previousFrom);
@@ -145,6 +156,7 @@ export function TodoBoard() {
 
   const sortedTodos = [...todos].sort((a, b) => Number(a.completed) - Number(b.completed));
   const completedCount = todos.filter((todo) => todo.completed).length;
+  const previousIncompleteCount = previousTodos.filter((todo) => !todo.completed).length;
 
   return (
     <Card className="p-4 space-y-3">
@@ -163,11 +175,21 @@ export function TodoBoard() {
         )}
       </div>
 
-      {selectedDate === today && todos.some((todo) => !todo.completed) && (
-        <Button variant="outline" size="sm" className="w-full" onClick={() => carryOverMutation.mutate({ fromDate: today, toDate: moveDate(today, 1) })} disabled={carryOverMutation.isPending} data-testid="button-carry-over-todos">
-          <ChevronRight className="mr-1 h-3.5 w-3.5" />
-          미완료 항목 {todos.filter((todo) => !todo.completed).length}건을 내일로 전달
-        </Button>
+      {selectedDate === today && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {previousIncompleteCount > 0 && (
+            <Button variant="outline" size="sm" className="w-full" onClick={() => carryOverMutation.mutate({ fromDate: previousDate, toDate: today })} disabled={carryOverMutation.isPending} data-testid="button-bring-previous-todos">
+              <ChevronRight className="mr-1 h-3.5 w-3.5" />
+              어제 미완료 {previousIncompleteCount}건 오늘로 가져오기
+            </Button>
+          )}
+          {todos.some((todo) => !todo.completed) && (
+            <Button variant="outline" size="sm" className="w-full" onClick={() => carryOverMutation.mutate({ fromDate: today, toDate: moveDate(today, 1) })} disabled={carryOverMutation.isPending} data-testid="button-carry-over-todos">
+              <ChevronRight className="mr-1 h-3.5 w-3.5" />
+              미완료 항목 {todos.filter((todo) => !todo.completed).length}건을 내일로 전달
+            </Button>
+          )}
+        </div>
       )}
 
       <div className="flex items-center justify-between rounded-md bg-muted/40 px-1 py-1">
