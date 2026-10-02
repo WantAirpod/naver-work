@@ -237,6 +237,15 @@ export async function registerRoutes(
     res.status(201).json(todo);
   });
 
+  app.post("/api/todos/carry-over", async (req, res) => {
+    const parsed = z.object({ fromDate: ymdSchema, toDate: ymdSchema }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    if (parsed.data.fromDate === parsed.data.toDate) {
+      return res.status(400).json({ message: "서로 다른 날짜를 선택하세요" });
+    }
+    res.json(await storage.carryOverTodos(parsed.data.fromDate, parsed.data.toDate));
+  });
+
   app.patch("/api/todos/:id", async (req, res) => {
     const updateSchema = z.object({
       content: z.string().optional(),

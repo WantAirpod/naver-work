@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Link2, Plus, Trash2, X } from "lucide-react";
 
 function normalizeUrl(value: string): string | null {
@@ -36,6 +37,7 @@ function formatDateLabel(ymd: string, today: string): string {
 }
 
 export function TodoBoard() {
+  const { toast } = useToast();
   const [content, setContent] = useState("");
   const [url, setUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -57,8 +59,8 @@ export function TodoBoard() {
       const res = await apiRequest("POST", "/api/todos", data);
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/todos", selectedDate] });
+    onSuccess: (todo) => {
+      queryClient.setQueryData<Todo[]>(todosQueryKey, (current = []) => [...current, todo]);
       setContent("");
       setUrl("");
       setIsAdding(false);
@@ -70,12 +72,64 @@ export function TodoBoard() {
       const res = await apiRequest("PATCH", `/api/todos/${id}`, { completed });
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/todos", selectedDate] }),
+    onMutate: async ({ id, completed }) => {
+      await queryClient.cancelQueries({ queryKey: todosQueryKey });
+      const previous = queryClient.getQueryData<Todo[]>(todosQueryKey);
+      queryClient.setQueryData<Todo[]>(todosQueryKey, (current = []) => current.map((todo) => todo.id === id ? { ...todo, completed } : todo));
+      return { previous };
+    },
+    onSuccess: (todo) => queryClient.setQueryData<Todo[]>(todosQueryKey, (current = []) => current.map((item) => item.id === todo.id ? todo : item)),
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(todosQueryKey, context?.previous);
+      toast({ title: "완료 상태를 저장하지 못했습니다", variant: "destructive" });
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/todos/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/todos", selectedDate] }),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: todosQueryKey });
+      const previous = queryClient.getQueryData<Todo[]>(todosQueryKey);
+      queryClient.setQueryData<Todo[]>(todosQueryKey, (current = []) => current.filter((todo) => todo.id !== id));
+      return { previous };
+    },
+    onError: (_error, _id, context) => {
+      queryClient.setQueryData(todosQueryKey, context?.previous);
+      toast({ title: "할 일을 삭제하지 못했습니다", variant: "destructive" });
+    },
+  });
+
+  const carryOverMutation = useMutation({
+    mutationFn: async ({ fromDate, toDate }: { fromDate: string; toDate: string }) => {
+      const res = await apiRequest("POST", "/api/todos/carry-over", { fromDate, toDate });
+      return res.json() as Promise<Todo[]>;
+    },
+    onMutate: async ({ fromDate, toDate }) => {
+      const fromKey = ["/api/todos", fromDate];
+      const toKey = ["/api/todos", toDate];
+      await Promise.all([queryClient.cancelQueries({ queryKey: fromKey }), queryClient.cancelQueries({ queryKey: toKey })]);
+      const previousFrom = queryClient.getQueryData<Todo[]>(fromKey);
+      const previousTo = queryClient.getQueryData<Todo[]>(toKey);
+      const moving = (previousFrom ?? []).filter((todo) => !todo.completed);
+      queryClient.setQueryData<Todo[]>(fromKey, (current = []) => current.filter((todo) => todo.completed));
+      queryClient.setQueryData<Todo[]>(toKey, (current = []) => [...current, ...moving.map((todo) => ({ ...todo, todoDate: toDate }))]);
+      return { previousFrom, previousTo, fromKey, toKey };
+    },
+    onSuccess: (moved, { fromDate, toDate }) => {
+      const fromKey = ["/api/todos", fromDate];
+      const toKey = ["/api/todos", toDate];
+      queryClient.setQueryData<Todo[]>(fromKey, (current = []) => current.filter((todo) => todo.completed));
+      queryClient.setQueryData<Todo[]>(toKey, (current = []) => {
+        const movedIds = new Set(moved.map((todo) => todo.id));
+        return [...current.filter((todo) => !movedIds.has(todo.id)), ...moved];
+      });
+      toast({ title: moved.length ? `${moved.length}건을 내일로 전달했습니다` : "전달할 미완료 항목이 없습니다" });
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(context?.fromKey ?? todosQueryKey, context?.previousFrom);
+      queryClient.setQueryData(context?.toKey ?? todosQueryKey, context?.previousTo);
+      toast({ title: "할 일을 내일로 전달하지 못했습니다", variant: "destructive" });
+    },
   });
 
   const handleAdd = () => {
@@ -98,7 +152,7 @@ export function TodoBoard() {
         <div>
           <h3 className="flex items-center gap-1.5 text-sm font-semibold">
             <CheckCircle2 className="w-4 h-4 text-primary" />
-            오늘 할 일
+            {selectedDate === today ? "오늘 할 일" : `${formatDateLabel(selectedDate, today)} 할 일`}
           </h3>
           {todos.length > 0 && <p className="mt-0.5 text-xs text-muted-foreground">{completedCount}/{todos.length} 완료</p>}
         </div>
@@ -108,6 +162,13 @@ export function TodoBoard() {
           </Button>
         )}
       </div>
+
+      {selectedDate === today && todos.some((todo) => !todo.completed) && (
+        <Button variant="outline" size="sm" className="w-full" onClick={() => carryOverMutation.mutate({ fromDate: today, toDate: moveDate(today, 1) })} disabled={carryOverMutation.isPending} data-testid="button-carry-over-todos">
+          <ChevronRight className="mr-1 h-3.5 w-3.5" />
+          미완료 항목 {todos.filter((todo) => !todo.completed).length}건을 내일로 전달
+        </Button>
+      )}
 
       <div className="flex items-center justify-between rounded-md bg-muted/40 px-1 py-1">
         <Button variant="ghost" size="icon" onClick={() => setSelectedDate(moveDate(selectedDate, -1))} aria-label="이전 날짜" data-testid="button-todo-prev-date">

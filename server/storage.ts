@@ -54,6 +54,7 @@ export interface IStorage {
   getTodos(date?: string): Promise<Todo[]>;
   createTodo(todo: InsertTodo): Promise<Todo>;
   updateTodo(id: number, data: Partial<InsertTodo>): Promise<Todo | undefined>;
+  carryOverTodos(fromDate: string, toDate: string): Promise<Todo[]>;
   deleteTodo(id: number): Promise<void>;
 
   getQuizQuestions(): Promise<QuizQuestion[]>;
@@ -187,6 +188,11 @@ export class DatabaseStorage implements IStorage {
   async updateTodo(id: number, data: Partial<InsertTodo>): Promise<Todo | undefined> {
     const [updated] = await db.update(todos).set(data).where(eq(todos.id, id)).returning();
     return updated;
+  }
+
+  async carryOverTodos(fromDate: string, toDate: string): Promise<Todo[]> {
+    return db.update(todos).set({ todoDate: toDate })
+      .where(and(eq(todos.todoDate, fromDate), eq(todos.completed, false))).returning();
   }
 
   async deleteTodo(id: number): Promise<void> {

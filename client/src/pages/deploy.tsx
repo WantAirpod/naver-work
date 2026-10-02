@@ -290,18 +290,18 @@ export default function DeployPage() {
             </Card>
           ) : (
             <Card>
-              <Table>
+              <Table className="min-w-[980px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-20">티켓</TableHead>
-                    <TableHead>제목</TableHead>
-                    <TableHead className="w-14 text-center">OSS</TableHead>
-                    <TableHead className="w-44">git</TableHead>
-                    <TableHead className="w-20 text-center">마일스톤</TableHead>
-                    <TableHead className="w-20 text-center">QA 완료</TableHead>
-                    <TableHead className="w-24 text-center">Code Review</TableHead>
-                    <TableHead className="w-20 text-center">PR리뷰</TableHead>
-                    <TableHead className="w-40">배포일</TableHead>
+                    <TableHead className="w-20 whitespace-nowrap">티켓</TableHead>
+                    <TableHead className="min-w-60">제목</TableHead>
+                    <TableHead className="w-14 whitespace-nowrap text-center">OSS</TableHead>
+                    <TableHead className="w-44 whitespace-nowrap">git</TableHead>
+                    <TableHead className="w-20 whitespace-nowrap text-center">마일스톤</TableHead>
+                    <TableHead className="w-20 whitespace-nowrap text-center">QA 완료</TableHead>
+                    <TableHead className="w-24 whitespace-nowrap text-center">Code Review</TableHead>
+                    <TableHead className="w-20 whitespace-nowrap text-center">PR리뷰</TableHead>
+                    <TableHead className="w-40 whitespace-nowrap">배포일</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -330,7 +330,7 @@ export default function DeployPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="align-top text-sm font-medium">
+                        <TableCell className="min-w-60 align-top text-sm font-medium leading-6 break-words">
                           {task.title}
                         </TableCell>
 
