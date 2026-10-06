@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-type MonthPlan = { target: number; planned: string[]; vacations: string[]; remote: string[] };
+type MonthPlan = { target: number; planned: string[]; vacations: string[]; halfVacations: string[]; remote: string[] };
 type Plans = Record<string, MonthPlan>;
 
 const STORAGE_KEY = "naver-work-office-plans-v1";
@@ -26,12 +26,12 @@ function loadPlans(): Plans {
 export default function OfficePage() {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [plans, setPlans] = useState<Plans>(loadPlans);
-  const [mode, setMode] = useState<"planned" | "vacation" | "remote">("planned");
+  const [mode, setMode] = useState<"planned" | "vacation" | "halfVacation" | "remote">("planned");
   const monthKey = format(month, "yyyy-MM");
   const savedPlan = plans[monthKey] as (Partial<MonthPlan> & { fixed?: string[] }) | undefined;
   const plan: MonthPlan = savedPlan
-    ? { target: savedPlan.target ?? 8, planned: Array.from(new Set([...(savedPlan.planned ?? []), ...(savedPlan.fixed ?? [])])), vacations: savedPlan.vacations ?? [], remote: savedPlan.remote ?? [] }
-    : { target: 8, planned: [], vacations: [], remote: [] };
+    ? { target: savedPlan.target ?? 8, planned: Array.from(new Set([...(savedPlan.planned ?? []), ...(savedPlan.fixed ?? [])])), vacations: savedPlan.vacations ?? [], halfVacations: savedPlan.halfVacations ?? [], remote: savedPlan.remote ?? [] }
+    : { target: 8, planned: [], vacations: [], halfVacations: [], remote: [] };
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(plans));
@@ -46,6 +46,16 @@ export default function OfficePage() {
       update({
         vacations: plan.vacations.includes(ymd) ? plan.vacations.filter((d) => d !== ymd) : [...plan.vacations, ymd],
         planned: plan.planned.filter((d) => d !== ymd),
+        halfVacations: plan.halfVacations.filter((d) => d !== ymd),
+        remote: plan.remote.filter((d) => d !== ymd),
+      });
+      return;
+    }
+    if (mode === "halfVacation") {
+      update({
+        halfVacations: plan.halfVacations.includes(ymd) ? plan.halfVacations.filter((d) => d !== ymd) : [...plan.halfVacations, ymd],
+        planned: plan.planned.filter((d) => d !== ymd),
+        vacations: plan.vacations.filter((d) => d !== ymd),
         remote: plan.remote.filter((d) => d !== ymd),
       });
       return;
@@ -55,12 +65,14 @@ export default function OfficePage() {
         remote: plan.remote.includes(ymd) ? plan.remote.filter((d) => d !== ymd) : [...plan.remote, ymd],
         planned: plan.planned.filter((d) => d !== ymd),
         vacations: plan.vacations.filter((d) => d !== ymd),
+        halfVacations: plan.halfVacations.filter((d) => d !== ymd),
       });
       return;
     }
     update({
       planned: plan.planned.includes(ymd) ? plan.planned.filter((d) => d !== ymd) : [...plan.planned, ymd],
       vacations: plan.vacations.filter((d) => d !== ymd),
+      halfVacations: plan.halfVacations.filter((d) => d !== ymd),
       remote: plan.remote.filter((d) => d !== ymd),
     });
   };
@@ -76,10 +88,13 @@ export default function OfficePage() {
 
   // A vacation day reduces the month's required office days; working remotely is
   // recorded separately and does not satisfy an in-office requirement.
-  const adjustedTarget = Math.max(0, plan.target - plan.vacations.length);
+  // 반차는 휴가 사용량으로는 0.5일이지만, 회사 출근 규칙상 필요 출근일은 1일 차감한다.
+  const vacationCredit = plan.vacations.length + plan.halfVacations.length * 0.5;
+  const attendanceReduction = plan.vacations.length + plan.halfVacations.length;
+  const adjustedTarget = Math.max(0, plan.target - attendanceReduction);
   const remaining = Math.max(0, adjustedTarget - plan.planned.length);
   const over = Math.max(0, plan.planned.length - adjustedTarget);
-  const selectedCount = plan.planned.length + plan.vacations.length + plan.remote.length;
+  const selectedCount = plan.planned.length + plan.vacations.length + plan.halfVacations.length + plan.remote.length;
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -115,17 +130,18 @@ export default function OfficePage() {
             </div>
           </Card>
           <Card className="p-4"><p className="text-xs text-muted-foreground">필요 출근일 <span className="text-amber-600">(휴가 반영)</span></p><p className="text-2xl font-bold mt-1 text-primary">{adjustedTarget}<span className="text-sm font-normal ml-1">일</span></p></Card>
-          <Card className="p-4"><p className="text-xs text-muted-foreground">휴가일</p><p className="text-2xl font-bold mt-1 text-amber-600 dark:text-amber-400">{plan.vacations.length}<span className="text-sm font-normal ml-1">일</span></p></Card>
+          <Card className="p-4"><p className="text-xs text-muted-foreground">휴가 차감 <span className="text-amber-600">(반차 포함)</span></p><p className="text-2xl font-bold mt-1 text-amber-600 dark:text-amber-400">{vacationCredit}<span className="text-sm font-normal ml-1">일</span></p></Card>
           <Card className={cn("p-4", remaining === 0 && "bg-primary/5 border-primary/20")}><p className="text-xs text-muted-foreground">앞으로 출근할 날</p><div className="flex items-end gap-2"><p className="text-2xl font-bold mt-1">{remaining}<span className="text-sm font-normal ml-1">일</span></p>{remaining === 0 && over === 0 && <span className="text-xs text-primary mb-1">계획 완료!</span>}{over > 0 && <span className="text-xs text-amber-600 mb-1">{over}일 초과</span>}</div></Card>
         </section>
 
         <section className="grid lg:grid-cols-[1fr_300px] gap-4 items-start">
           <Card className="p-3 sm:p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-              <div><h3 className="font-semibold flex items-center gap-2"><CalendarDays className="w-4 h-4" />날짜 선택</h3><p className="text-xs text-muted-foreground mt-1">출근, 재택 또는 휴가를 고른 뒤 날짜를 눌러주세요.</p></div>
-              <div className="grid grid-cols-3 bg-muted rounded-lg p-1 text-sm">
+              <div><h3 className="font-semibold flex items-center gap-2"><CalendarDays className="w-4 h-4" />날짜 선택</h3><p className="text-xs text-muted-foreground mt-1">출근, 재택, 반차 또는 휴가를 고른 뒤 날짜를 눌러주세요.</p></div>
+              <div className="grid grid-cols-4 bg-muted rounded-lg p-1 text-sm">
                 <button onClick={() => setMode("planned")} className={cn("px-4 py-2 rounded-md transition", mode === "planned" && "bg-card shadow-sm font-semibold text-primary")}>출근일</button>
                 <button onClick={() => setMode("remote")} className={cn("px-4 py-2 rounded-md transition", mode === "remote" && "bg-card shadow-sm font-semibold text-sky-600")}>재택일</button>
+                <button onClick={() => setMode("halfVacation")} className={cn("px-4 py-2 rounded-md transition", mode === "halfVacation" && "bg-card shadow-sm font-semibold text-orange-600")}>반차</button>
                 <button onClick={() => setMode("vacation")} className={cn("px-4 py-2 rounded-md transition", mode === "vacation" && "bg-card shadow-sm font-semibold text-amber-600")}>휴가일</button>
               </div>
             </div>
@@ -137,11 +153,13 @@ export default function OfficePage() {
                 const dow = (getDay(month) + day - 1) % 7;
                 const planned = plan.planned.includes(ymd);
                 const vacation = plan.vacations.includes(ymd);
+                const halfVacation = plan.halfVacations.includes(ymd);
                 const remote = plan.remote.includes(ymd);
-                return <button key={ymd} onClick={() => toggleDate(ymd)} className={cn("relative min-h-14 sm:min-h-20 rounded-lg border text-sm text-left p-2 transition hover:border-primary/50 hover:bg-muted/50", planned && "border-primary bg-primary/5", remote && "border-sky-400 bg-sky-50 dark:bg-sky-950/20", vacation && "border-amber-400 bg-amber-50 dark:bg-amber-950/20", dow === 0 && "text-red-500", dow === 6 && "text-blue-500")}>
+                return <button key={ymd} onClick={() => toggleDate(ymd)} className={cn("relative min-h-14 sm:min-h-20 rounded-lg border text-sm text-left p-2 transition hover:border-primary/50 hover:bg-muted/50", planned && "border-primary bg-primary/5", remote && "border-sky-400 bg-sky-50 dark:bg-sky-950/20", halfVacation && "border-orange-400 bg-orange-50 dark:bg-orange-950/20", vacation && "border-amber-400 bg-amber-50 dark:bg-amber-950/20", dow === 0 && "text-red-500", dow === 6 && "text-blue-500")}>
                   <span className="font-medium">{day}</span>
                   {planned && <span className="absolute left-1.5 right-1.5 bottom-1.5 rounded bg-primary text-primary-foreground text-[10px] sm:text-xs py-0.5 text-center">출근</span>}
                   {remote && <span className="absolute left-1.5 right-1.5 bottom-1.5 rounded bg-sky-500 text-white text-[10px] sm:text-xs py-0.5 text-center">재택</span>}
+                  {halfVacation && <span className="absolute left-1.5 right-1.5 bottom-1.5 rounded bg-orange-500 text-white text-[10px] sm:text-xs py-0.5 text-center">반차</span>}
                   {vacation && <span className="absolute left-1.5 right-1.5 bottom-1.5 rounded bg-amber-500 text-white text-[10px] sm:text-xs py-0.5 text-center">휴가</span>}
                 </button>;
               })}
@@ -151,10 +169,10 @@ export default function OfficePage() {
           <div className="space-y-4">
             <Card className="p-5">
               <h3 className="font-semibold mb-1">이번 달 출근 계획</h3>
-              <p className="text-xs text-muted-foreground mb-4">휴가 1일마다 필요한 출근일이 1일 차감되며, 재택일은 별도로 기록됩니다.</p>
-              {selectedCount === 0 ? <div className="text-sm text-muted-foreground bg-muted/60 rounded-lg p-4 text-center">아직 선택한 날짜가 없어요</div> : <div className="space-y-2">{[...plan.planned.map((date) => ({ date, type: "출근" })), ...plan.remote.map((date) => ({ date, type: "재택" })), ...plan.vacations.map((date) => ({ date, type: "휴가" }))].sort((a, b) => a.date.localeCompare(b.date)).map(({ date, type }) => <div key={date} className="flex items-center justify-between rounded-lg border px-3 py-2"><span className="text-sm font-medium">{format(new Date(`${date}T12:00:00`), "M월 d일 (EEE)", { locale: ko })}</span><Badge variant="outline" className={cn("text-[10px]", type === "휴가" ? "text-amber-600 border-amber-200" : type === "재택" ? "text-sky-600 border-sky-200" : "text-primary border-primary/20")}>{type}</Badge></div>)}</div>}
+              <p className="text-xs text-muted-foreground mb-4">반차는 휴가 사용량 0.5일로 기록되며, 필요한 출근일은 1일 차감됩니다. 재택일은 별도로 기록됩니다.</p>
+              {selectedCount === 0 ? <div className="text-sm text-muted-foreground bg-muted/60 rounded-lg p-4 text-center">아직 선택한 날짜가 없어요</div> : <div className="space-y-2">{[...plan.planned.map((date) => ({ date, type: "출근" })), ...plan.remote.map((date) => ({ date, type: "재택" })), ...plan.halfVacations.map((date) => ({ date, type: "반차" })), ...plan.vacations.map((date) => ({ date, type: "휴가" }))].sort((a, b) => a.date.localeCompare(b.date)).map(({ date, type }) => <div key={date} className="flex items-center justify-between rounded-lg border px-3 py-2"><span className="text-sm font-medium">{format(new Date(`${date}T12:00:00`), "M월 d일 (EEE)", { locale: ko })}</span><Badge variant="outline" className={cn("text-[10px]", type === "휴가" ? "text-amber-600 border-amber-200" : type === "반차" ? "text-orange-600 border-orange-200" : type === "재택" ? "text-sky-600 border-sky-200" : "text-primary border-primary/20")}>{type}</Badge></div>)}</div>}
             </Card>
-            <Button variant="outline" className="w-full text-muted-foreground" onClick={() => update({ planned: [], vacations: [], remote: [] })}><RotateCcw className="w-3.5 h-3.5 mr-2" />{format(month, "M월")} 날짜 선택 초기화</Button>
+            <Button variant="outline" className="w-full text-muted-foreground" onClick={() => update({ planned: [], vacations: [], halfVacations: [], remote: [] })}><RotateCcw className="w-3.5 h-3.5 mr-2" />{format(month, "M월")} 날짜 선택 초기화</Button>
           </div>
         </section>
       </main>
