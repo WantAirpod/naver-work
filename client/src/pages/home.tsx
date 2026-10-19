@@ -4,7 +4,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Task, Comment, TaskRelation, TaskPr } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -30,31 +31,17 @@ import {
   FileText,
   Eye,
   Terminal,
-  Crown,
   TreePine,
   Rocket,
   Building2,
   GitPullRequest,
-  Link2,
   MessageSquare,
   Columns3,
   List,
+  Settings2,
 } from "lucide-react";
 import { cn, extractTicketNumber, getPriorityConfig } from "@/lib/utils";
 import { Link } from "wouter";
-
-const DEMO_IN_PROGRESS_TASKS: Task[] = [
-  { id: -1, title: "결제 내역 조회 응답 개선", ticketUrl: "https://example.com/issues/1842", referenceUrl: null, ticketNumber: "1842", description: "조회 결과에 결제 상태와 처리 시간을 함께 노출합니다. 예외 응답 문구와 프론트 표시 방식도 정리 중입니다.", status: "in_progress", priority: "high", sortOrder: 0, prUrl: null, isEpic: false, parentEpicId: null, deployDate: null, milestoneRegistered: false, qaCompleted: false, codeReviewCompleted: false, createdAt: new Date(), completedAt: null },
-  { id: -2, title: "관리자 화면 검색 조건 추가", ticketUrl: "https://example.com/issues/1857", referenceUrl: null, ticketNumber: "1857", description: "기간과 상태를 조합해 조회할 수 있도록 검색 조건을 추가합니다. API 연동 후 빈 결과와 오류 상태를 확인할 예정입니다.", status: "in_progress", priority: "medium", sortOrder: 1, prUrl: null, isEpic: false, parentEpicId: null, deployDate: null, milestoneRegistered: false, qaCompleted: false, codeReviewCompleted: false, createdAt: new Date(), completedAt: null },
-  { id: -3, title: "배치 작업 실패 알림 정비", ticketUrl: "https://example.com/issues/1861", referenceUrl: null, ticketNumber: "1861", description: "실패 원인과 재처리 여부를 알림에 포함합니다. 운영 알림 채널과 임계값도 함께 점검하고 있습니다.", status: "in_progress", priority: "medium", sortOrder: 2, prUrl: null, isEpic: false, parentEpicId: null, deployDate: null, milestoneRegistered: false, qaCompleted: false, codeReviewCompleted: false, createdAt: new Date(), completedAt: null },
-  { id: -4, title: "월간 운영 리포트 자동화", ticketUrl: null, referenceUrl: null, ticketNumber: "TODO", description: "월말 지표를 집계해 공유용 문서를 자동으로 만들도록 구성합니다. 먼저 필요한 지표와 데이터 출처를 확정합니다.", status: "in_progress", priority: "low", sortOrder: 3, prUrl: null, isEpic: false, parentEpicId: null, deployDate: null, milestoneRegistered: false, qaCompleted: false, codeReviewCompleted: false, createdAt: new Date(), completedAt: null },
-];
-
-const DEMO_BOARD_TASKS: Task[] = DEMO_IN_PROGRESS_TASKS.map((task, index) => ({
-  ...task,
-  status: (["backlog", "in_progress", "review", "completed"] as const)[index],
-  title: ["요구사항 및 일정 정리", "결제 내역 조회 응답 개선", "관리자 검색 조건 코드 리뷰", "지난 배포 내역 정리"][index],
-}));
 
 export default function Home() {
   const { toast } = useToast();
@@ -64,7 +51,7 @@ export default function Home() {
   const [reportOpen, setReportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("in_progress");
-  const [viewMode, setViewMode] = useState<"board" | "list">("board");
+  const [viewMode, setViewMode] = useState<"board" | "list">("list");
   const [completedFilter, setCompletedFilter] = useState<"7d" | "30d" | "all">("30d");
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<number | null>(null);
@@ -393,9 +380,6 @@ export default function Home() {
   const getEpicTask = (parentEpicId: number | null) =>
     parentEpicId ? tasks.find((t) => t.id === parentEpicId) || null : null;
 
-  const showingOverviewPreview = activeTab === "in_progress" && !searchQuery.trim() && filteredTasks.length === 0;
-  const overviewTasks = showingOverviewPreview ? DEMO_IN_PROGRESS_TASKS : filteredTasks;
-
   const handleSelectTask = (task: Task) => {
     setSelectedTask(task);
   };
@@ -490,70 +474,11 @@ export default function Home() {
     );
   };
 
-  const renderInProgressOverview = () => (
-    <Card className="overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/20">
-        <div>
-          <h2 className="text-sm font-semibold">작업 중 한눈에 보기</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">행을 누르면 상세 내용을 볼 수 있어요.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {showingOverviewPreview && <Badge variant="outline" className="text-[10px] text-muted-foreground">예시 데이터</Badge>}
-          <Badge variant="secondary">{overviewTasks.length}개</Badge>
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left">
-          <thead className="bg-muted/40 text-[11px] text-muted-foreground">
-            <tr>
-              <th className="w-[78px] px-4 py-2.5 font-medium">우선순위</th>
-              <th className="w-[76px] px-2 py-2.5 font-medium">티켓</th>
-              <th className="w-[28%] px-3 py-2.5 font-medium">작업명</th>
-              <th className="px-3 py-2.5 font-medium">작업 내용</th>
-              <th className="w-[105px] px-3 py-2.5 font-medium">활동</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {overviewTasks.map((task, index) => {
-          const priority = getPriorityConfig(task.priority);
-          const commentCount = showingOverviewPreview ? [3, 1, 4, 0][index] : getCommentsForTask(task.id).length;
-          const relatedCount = getRelatedCount(task.id);
-          const prCount = showingOverviewPreview ? [1, 0, 2, 0][index] : getPrsForTask(task.id).length;
-          const ticketNumber = task.ticketUrl ? extractTicketNumber(task.ticketUrl) : "Todo";
-
-            return (
-            <tr
-              key={task.id}
-              onClick={() => !showingOverviewPreview && handleSelectTask(task)}
-              className={cn("transition-colors", showingOverviewPreview ? "" : "cursor-pointer hover:bg-muted/60")}
-              data-testid={`overview-task-${task.id}`}
-            >
-              <td className="px-4 py-3 align-top"><Badge variant="outline" className={cn("px-1.5 text-[10px]", priority.className)}>{priority.label}</Badge></td>
-              <td className="px-2 py-3 align-top text-xs font-mono font-semibold text-primary">{task.ticketUrl ? `#${ticketNumber}` : ticketNumber}</td>
-              <td className="px-3 py-3 align-top text-sm font-semibold leading-5">{task.title}</td>
-              <td className="px-3 py-3 align-top text-xs leading-5 text-muted-foreground">{task.description || "내용 미입력"}</td>
-              <td className="px-3 py-3 align-top">
-                <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-                  {prCount > 0 && <span className="flex items-center gap-1 text-primary"><GitPullRequest className="w-3 h-3" />{prCount}</span>}
-                  {commentCount > 0 && <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{commentCount}</span>}
-                  {relatedCount > 0 && <span className="flex items-center gap-1"><Link2 className="w-3 h-3" />{relatedCount}</span>}
-                  {prCount === 0 && commentCount === 0 && relatedCount === 0 && <span className="text-muted-foreground/60">-</span>}
-                </div>
-              </td>
-            </tr>
-            );
-          })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-
-  const renderBoardCard = (task: Task, index: number, isPreview: boolean) => {
+  const renderBoardCard = (task: Task) => {
     const priority = getPriorityConfig(task.priority);
     const ticketNumber = task.ticketUrl ? extractTicketNumber(task.ticketUrl) : "Todo";
-    const commentCount = isPreview ? [1, 3, 2, 0][index % 4] : getCommentsForTask(task.id).length;
-    const prCount = isPreview ? [0, 1, 2, 0][index % 4] : getPrsForTask(task.id).length;
+    const commentCount = getCommentsForTask(task.id).length;
+    const prCount = getPrsForTask(task.id).length;
     const childTasks = task.isEpic ? tasks.filter((child) => child.parentEpicId === task.id) : [];
     const isExpanded = expandedEpics.has(task.id);
 
@@ -561,8 +486,8 @@ export default function Home() {
       <div key={task.id} className="space-y-1.5">
         <button
           type="button"
-          onClick={() => !isPreview && handleSelectTask(task)}
-          className={cn("w-full rounded-lg border bg-card p-3 text-left shadow-sm transition-colors", isPreview ? "cursor-default" : "hover:border-primary/50 hover:bg-muted/30")}
+          onClick={() => handleSelectTask(task)}
+          className="w-full rounded-lg border bg-card p-3 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-muted/30"
         >
           <div className="flex items-center justify-between gap-2">
             <Badge variant="outline" className={cn("px-1.5 text-[10px]", priority.className)}>{priority.label}</Badge>
@@ -596,13 +521,19 @@ export default function Home() {
   };
 
   const renderBoard = () => {
-    const isPreview = tasks.length === 0;
-    const source = isPreview ? DEMO_BOARD_TASKS : tasks;
+    const query = searchQuery.trim().toLowerCase();
+    const boardTasks = query
+      ? tasks.filter((task) =>
+          task.title.toLowerCase().includes(query) ||
+          task.ticketNumber.toLowerCase().includes(query) ||
+          task.description?.toLowerCase().includes(query)
+        )
+      : tasks;
     const columns = [
-      { status: "backlog", label: "진행 전", className: "border-slate-300", tasks: source.filter((task) => task.status === "backlog" && !task.parentEpicId) },
-      { status: "in_progress", label: "작업 중", className: "border-primary/40", tasks: source.filter((task) => task.status === "in_progress" && !task.parentEpicId) },
-      { status: "review", label: "검토 중", className: "border-orange-300", tasks: source.filter((task) => task.status === "review" && !task.parentEpicId) },
-      { status: "completed", label: "완료", className: "border-emerald-300", tasks: (isPreview ? source.filter((task) => task.status === "completed") : visibleCompletedTasks).filter((task) => !task.parentEpicId) },
+      { status: "backlog", label: "진행 전", className: "border-slate-300", tasks: boardTasks.filter((task) => task.status === "backlog" && !task.parentEpicId) },
+      { status: "in_progress", label: "작업 중", className: "border-primary/40", tasks: boardTasks.filter((task) => task.status === "in_progress" && !task.parentEpicId) },
+      { status: "review", label: "검토 중", className: "border-orange-300", tasks: boardTasks.filter((task) => task.status === "review" && !task.parentEpicId) },
+      { status: "completed", label: "완료", className: "border-emerald-300", tasks: visibleCompletedTasks.filter((task) => boardTasks.includes(task) && !task.parentEpicId) },
     ];
 
     return (
@@ -612,19 +543,18 @@ export default function Home() {
             <Card key={column.status} className={cn("flex h-[calc(100vh-240px)] min-h-[380px] flex-col border-t-2 bg-muted/20", column.className)}>
               <div className="flex items-center justify-between gap-2 border-b px-3 py-3 bg-card/70">
                 <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">{column.label}</h2><Badge variant="secondary" className="text-[10px]">{column.tasks.length}</Badge></div>
-                {column.status === "completed" && !isPreview && (
+                {column.status === "completed" && (
                   <select value={completedFilter} onChange={(event) => setCompletedFilter(event.target.value as "7d" | "30d" | "all")} onClick={(event) => event.stopPropagation()} className="h-7 rounded border bg-background px-1 text-[10px] text-muted-foreground">
                     <option value="7d">최근 7일</option><option value="30d">최근 30일</option><option value="all">전체</option>
                   </select>
                 )}
               </div>
               <div className="flex-1 space-y-2 overflow-y-auto p-2.5">
-                {column.tasks.length > 0 ? column.tasks.map((task, index) => renderBoardCard(task, index, isPreview)) : <p className="py-8 text-center text-xs text-muted-foreground">작업이 없습니다</p>}
+                {column.tasks.length > 0 ? column.tasks.map(renderBoardCard) : <p className="py-8 text-center text-xs text-muted-foreground">작업이 없습니다</p>}
               </div>
             </Card>
           ))}
         </div>
-        {isPreview && <p className="mt-2 text-xs text-muted-foreground">예시 데이터입니다. 실제 작업이 있으면 해당 작업으로 자동 대체됩니다.</p>}
       </div>
     );
   };
@@ -700,7 +630,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto h-full flex">
           <div
             className={cn(
-              "flex-1 flex flex-col h-full border-r",
+              "min-w-0 flex-1 flex flex-col h-full border-r",
               isMobile && showDetail && "hidden"
             )}
           >
@@ -717,56 +647,65 @@ export default function Home() {
               </div>
 
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">{viewMode === "board" ? "상태별 작업 흐름을 한 화면에서 확인하세요." : "상태별 작업을 목록으로 확인하세요."}</p>
-                <div className="flex shrink-0 rounded-md bg-muted p-0.5 text-xs">
-                  <button onClick={() => setViewMode("board")} className={cn("flex items-center gap-1 rounded px-2 py-1.5", viewMode === "board" && "bg-background shadow-sm font-semibold")}><Columns3 className="w-3.5 h-3.5" />보드</button>
-                  <button onClick={() => setViewMode("list")} className={cn("flex items-center gap-1 rounded px-2 py-1.5", viewMode === "list" && "bg-background shadow-sm font-semibold")}><List className="w-3.5 h-3.5" />목록</button>
-                </div>
+                <p className="min-w-0 text-xs text-muted-foreground">{viewMode === "board" ? "상태별 작업 흐름" : "상태별 작업 목록"}</p>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="shrink-0 gap-1.5" aria-label="보기 설정" data-testid="button-view-settings">
+                      <Settings2 className="h-3.5 w-3.5" />보기 설정
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuRadioGroup value={viewMode} onValueChange={(value) => setViewMode(value as "list" | "board")}>
+                      <DropdownMenuRadioItem value="list"><List className="mr-2 h-4 w-4" />목록</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="board"><Columns3 className="mr-2 h-4 w-4" />보드</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               {viewMode === "list" && <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="w-full">
+                <TabsList className="grid h-auto min-h-10 w-full grid-cols-4">
                   <TabsTrigger
                     value="backlog"
-                    className="flex-1 gap-1.5"
+                    className="min-w-0 gap-1 px-1 text-[11px] sm:gap-1.5 sm:px-3 sm:text-sm"
                     data-testid="tab-backlog"
                   >
-                    <Inbox className="w-3.5 h-3.5" />
+                    <Inbox className="hidden h-3.5 w-3.5 lg:block" />
                     진행 전
-                    <Badge variant="secondary" className="text-[10px] px-1.5">
+                    <Badge variant="secondary" className="hidden px-1.5 text-[10px] lg:inline-flex">
                       {backlogTasks.length}
                     </Badge>
                   </TabsTrigger>
                   <TabsTrigger
                     value="in_progress"
-                    className="flex-1 gap-1.5"
+                    className="min-w-0 gap-1 px-1 text-[11px] sm:gap-1.5 sm:px-3 sm:text-sm"
                     data-testid="tab-in-progress"
                   >
-                    <PlayCircle className="w-3.5 h-3.5" />
+                    <PlayCircle className="hidden h-3.5 w-3.5 lg:block" />
                     작업 중
-                    <Badge variant="secondary" className="text-[10px] px-1.5">
+                    <Badge variant="secondary" className="hidden px-1.5 text-[10px] lg:inline-flex">
                       {inProgressTasks.length}
                     </Badge>
                   </TabsTrigger>
                   <TabsTrigger
                     value="review"
-                    className="flex-1 gap-1.5"
+                    className="min-w-0 gap-1 px-1 text-[11px] sm:gap-1.5 sm:px-3 sm:text-sm"
                     data-testid="tab-review"
                   >
-                    <Eye className="w-3.5 h-3.5" />
+                    <Eye className="hidden h-3.5 w-3.5 lg:block" />
                     검토 중
-                    <Badge variant="secondary" className="text-[10px] px-1.5">
+                    <Badge variant="secondary" className="hidden px-1.5 text-[10px] lg:inline-flex">
                       {reviewTasks.length}
                     </Badge>
                   </TabsTrigger>
                   <TabsTrigger
                     value="completed"
-                    className="flex-1 gap-1.5"
+                    className="min-w-0 gap-1 px-1 text-[11px] sm:gap-1.5 sm:px-3 sm:text-sm"
                     data-testid="tab-completed"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <CheckCircle2 className="hidden h-3.5 w-3.5 lg:block" />
                     완료
-                    <Badge variant="secondary" className="text-[10px] px-1.5">
+                    <Badge variant="secondary" className="hidden px-1.5 text-[10px] lg:inline-flex">
                       {completedTasks.length}
                     </Badge>
                   </TabsTrigger>
@@ -781,7 +720,7 @@ export default function Home() {
                     <Skeleton key={i} className="h-32 w-full rounded-md" />
                   ))}
                 </div>
-              ) : viewMode === "board" ? renderBoard() : filteredTasks.length === 0 && !showingOverviewPreview ? (
+              ) : viewMode === "board" ? renderBoard() : filteredTasks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
                     {activeTab === "backlog" ? (
@@ -819,11 +758,9 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                activeTab === "in_progress" ? renderInProgressOverview() : (
-                  <div className="space-y-2">
-                    {filteredTasks.map((task) => renderTaskItem(task))}
-                  </div>
-                )
+                <div className="space-y-2">
+                  {filteredTasks.map((task) => renderTaskItem(task))}
+                </div>
               )}
             </div>
           </div>
