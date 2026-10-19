@@ -92,6 +92,7 @@ export type FavoriteLink = typeof favoriteLinks.$inferSelect;
 export const todos = pgTable("todos", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   content: text("content").notNull(),
+  description: text("description"),
   url: text("url"),
   todoDate: date("todo_date").notNull().default(sql`CURRENT_DATE`),
   completed: boolean("completed").notNull().default(false),

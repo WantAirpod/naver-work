@@ -249,6 +249,7 @@ export async function registerRoutes(
   app.patch("/api/todos/:id", async (req, res) => {
     const updateSchema = z.object({
       content: z.string().optional(),
+      description: z.string().nullable().optional(),
       url: z.string().url().nullable().optional(),
       todoDate: ymdSchema.optional(),
       completed: z.boolean().optional(),

@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { seedDatabase } from "./seed";
+import { pool } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
@@ -61,6 +62,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await pool.query('ALTER TABLE "todos" ADD COLUMN IF NOT EXISTS "description" text');
   await registerRoutes(httpServer, app);
   await seedDatabase();
 

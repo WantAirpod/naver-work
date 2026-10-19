@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Link2, Plus, Trash2, X } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Link2, Pencil, Plus, Trash2, X } from "lucide-react";
 
 function normalizeUrl(value: string): string | null {
   const trimmed = value.trim();
@@ -39,8 +40,10 @@ function formatDateLabel(ymd: string, today: string): string {
 export function TodoBoard() {
   const { toast } = useToast();
   const [content, setContent] = useState("");
+  const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [editing, setEditing] = useState<{ id: number; todoDate: string; content: string; description: string; url: string } | null>(null);
   const today = toYmd(new Date());
   const previousDate = moveDate(today, -1);
   const [selectedDate, setSelectedDate] = useState(today);
@@ -66,16 +69,18 @@ export function TodoBoard() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: { content: string; url: string | null; todoDate: string }) => {
+    mutationFn: async (data: { content: string; description: string | null; url: string | null; todoDate: string }) => {
       const res = await apiRequest("POST", "/api/todos", data);
       return res.json();
     },
     onSuccess: (todo) => {
       queryClient.setQueryData<Todo[]>(todosQueryKey, (current = []) => [...current, todo]);
       setContent("");
+      setDescription("");
       setUrl("");
       setIsAdding(false);
     },
+    onError: () => toast({ title: "할 일을 저장하지 못했습니다", variant: "destructive" }),
   });
 
   const toggleMutation = useMutation({
@@ -94,6 +99,18 @@ export function TodoBoard() {
       queryClient.setQueryData(todosQueryKey, context?.previous);
       toast({ title: "완료 상태를 저장하지 못했습니다", variant: "destructive" });
     },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, content, description, url }: { id: number; todoDate: string; content: string; description: string | null; url: string | null }) => {
+      const res = await apiRequest("PATCH", `/api/todos/${id}`, { content, description, url });
+      return res.json() as Promise<Todo>;
+    },
+    onSuccess: (updated, { todoDate }) => {
+      queryClient.setQueryData<Todo[]>(["/api/todos", todoDate], (current = []) => current.map((todo) => todo.id === updated.id ? updated : todo));
+      setEditing((current) => current?.id === updated.id ? null : current);
+    },
+    onError: () => toast({ title: "할 일 수정을 저장하지 못했습니다", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -145,13 +162,29 @@ export function TodoBoard() {
 
   const handleAdd = () => {
     if (!content.trim()) return;
-    createMutation.mutate({ content: content.trim(), url: normalizeUrl(url), todoDate: selectedDate });
+    createMutation.mutate({ content: content.trim(), description: description.trim() || null, url: normalizeUrl(url), todoDate: selectedDate });
   };
 
   const cancelAdd = () => {
     setIsAdding(false);
     setContent("");
+    setDescription("");
     setUrl("");
+  };
+
+  const startEdit = (todo: Todo) => {
+    setEditing({ id: todo.id, todoDate: todo.todoDate, content: todo.content, description: todo.description ?? "", url: todo.url ?? "" });
+  };
+
+  const saveEdit = () => {
+    if (!editing?.content.trim() || updateMutation.isPending) return;
+    updateMutation.mutate({
+      id: editing.id,
+      todoDate: editing.todoDate,
+      content: editing.content.trim(),
+      description: editing.description.trim() || null,
+      url: normalizeUrl(editing.url),
+    });
   };
 
   const sortedTodos = [...todos].sort((a, b) => Number(a.completed) - Number(b.completed));
@@ -213,7 +246,8 @@ export function TodoBoard() {
 
       {isAdding && (
         <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-          <Input value={content} onChange={(event) => setContent(event.target.value)} placeholder="오늘 할 일을 입력하세요" autoFocus data-testid="input-new-todo" />
+          <Input value={content} onChange={(event) => setContent(event.target.value)} placeholder="제목" aria-label="할 일 제목" autoFocus data-testid="input-new-todo" />
+          <Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="내용 (선택)" aria-label="할 일 내용" className="min-h-[80px] resize-y" data-testid="input-todo-description" />
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Link2 className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -242,17 +276,37 @@ export function TodoBoard() {
       ) : (
         <div className="divide-y rounded-md border">
           {sortedTodos.map((todo) => (
-            <div key={todo.id} className="group flex items-center gap-2.5 px-3 py-2.5" data-testid={`todo-${todo.id}`}>
-              <Checkbox checked={todo.completed} onCheckedChange={(checked) => toggleMutation.mutate({ id: todo.id, completed: checked === true })} aria-label={`${todo.content} 완료`} data-testid={`checkbox-todo-${todo.id}`} />
-              <span className={cn("min-w-0 flex-1 text-sm break-words", todo.completed && "line-through text-muted-foreground")}>{todo.content}</span>
-              {todo.url && (
-                <a href={todo.url} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary" aria-label={`${todo.content} 링크 열기`} data-testid={`link-todo-${todo.id}`}>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+            <div key={todo.id} className="group px-3 py-2.5" data-testid={`todo-${todo.id}`}>
+              {editing?.id === todo.id && editing.todoDate === selectedDate ? (
+                <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); saveEdit(); }} onKeyDown={(event) => { if (event.key === "Escape" && !updateMutation.isPending) setEditing(null); }}>
+                  <Input value={editing.content} onChange={(event) => setEditing({ ...editing, content: event.target.value })} placeholder="제목" aria-label="할 일 제목 수정" autoFocus data-testid={`input-edit-todo-title-${todo.id}`} />
+                  <Textarea value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })} placeholder="내용 (선택)" aria-label="할 일 내용 수정" className="min-h-[80px] resize-y" data-testid={`input-edit-todo-description-${todo.id}`} />
+                  <Input value={editing.url} onChange={(event) => setEditing({ ...editing, url: event.target.value })} placeholder="관련 URL (선택)" aria-label="할 일 URL 수정" data-testid={`input-edit-todo-url-${todo.id}`} />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setEditing(null)} disabled={updateMutation.isPending} data-testid={`button-cancel-edit-todo-${todo.id}`}>취소</Button>
+                    <Button type="submit" size="sm" disabled={!editing.content.trim() || updateMutation.isPending} data-testid={`button-save-edit-todo-${todo.id}`}>저장</Button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <Checkbox checked={todo.completed} onCheckedChange={(checked) => toggleMutation.mutate({ id: todo.id, completed: checked === true })} aria-label={`${todo.content} 완료`} data-testid={`checkbox-todo-${todo.id}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className={cn("text-sm break-words", todo.completed && "line-through text-muted-foreground")}>{todo.content}</div>
+                    {todo.description && <p className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground" data-testid={`todo-description-${todo.id}`}>{todo.description}</p>}
+                  </div>
+                  {todo.url && (
+                    <a href={todo.url} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary" aria-label={`${todo.content} 링크 열기`} data-testid={`link-todo-${todo.id}`}>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  <button type="button" onClick={() => startEdit(todo)} className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" aria-label={`${todo.content} 수정`} data-testid={`button-edit-todo-${todo.id}`}>
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button type="button" onClick={() => deleteMutation.mutate(todo.id)} className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 focus:opacity-100" aria-label={`${todo.content} 삭제`} data-testid={`button-delete-todo-${todo.id}`}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
-              <button type="button" onClick={() => deleteMutation.mutate(todo.id)} className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 focus:opacity-100" aria-label={`${todo.content} 삭제`} data-testid={`button-delete-todo-${todo.id}`}>
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
             </div>
           ))}
         </div>

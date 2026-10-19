@@ -85,6 +85,9 @@ async function main() {
       `ALTER TABLE todos ADD COLUMN IF NOT EXISTS url text`,
     );
     await client.query(
+      `ALTER TABLE todos ADD COLUMN IF NOT EXISTS description text`,
+    );
+    await client.query(
       `ALTER TABLE todos ADD COLUMN IF NOT EXISTS todo_date date DEFAULT CURRENT_DATE NOT NULL`,
     );
     await client.query(`
