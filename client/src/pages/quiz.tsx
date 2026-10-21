@@ -119,8 +119,8 @@ export default function QuizPage() {
   const categories = Array.from(new Set(questions.map((q) => q.category || "general")));
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      <header className="shrink-0 border-b bg-card" style={{ zIndex: 100 }}>
+    <div className="flex h-dvh flex-col bg-background">
+      <header className="relative z-20 shrink-0 border-b bg-card">
         <div className="flex items-center justify-between gap-3 px-4 py-3 max-w-4xl mx-auto flex-wrap">
           <div className="flex items-center gap-2.5">
             <Link href="/">
@@ -159,7 +159,7 @@ export default function QuizPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {mode === "manage" ? (
           <ManageView
             questions={questions}

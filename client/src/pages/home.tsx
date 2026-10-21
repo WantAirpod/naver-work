@@ -45,7 +45,7 @@ import { Link } from "wouter";
 
 export default function Home() {
   const { toast } = useToast();
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile(1024);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -560,8 +560,8 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      <header className="shrink-0 border-b bg-card" style={{ zIndex: 100 }}>
+    <div className="flex h-dvh flex-col bg-background">
+      <header className="relative z-20 shrink-0 border-b bg-card">
         <div className="flex items-center justify-between gap-3 px-4 py-3 max-w-6xl mx-auto flex-wrap">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
@@ -571,7 +571,7 @@ export default function Home() {
               NAVER Work
             </h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <ThemeToggle />
             <Link href="/todos">
               <Button variant="outline" size="sm" data-testid="button-todos-link">
@@ -626,7 +626,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <div className="max-w-6xl mx-auto h-full flex">
           <div
             className={cn(
@@ -768,7 +768,7 @@ export default function Home() {
           <div
             className={cn(
               "w-full md:w-[420px] lg:w-[480px] shrink-0 bg-card",
-              isMobile ? (showDetail ? "block" : "hidden") : (showDetail ? "block" : "hidden md:block")
+              isMobile ? (showDetail ? "block" : "hidden") : (showDetail ? "block" : "hidden lg:block")
             )}
           >
             {selectedTask ? (

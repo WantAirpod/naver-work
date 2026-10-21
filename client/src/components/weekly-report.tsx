@@ -291,12 +291,12 @@ export function WeeklyReport({ open, onOpenChange, tasks }: WeeklyReportProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex h-[min(840px,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-[700px]">
+        <DialogHeader className="shrink-0 border-b px-4 py-4 pr-12 sm:px-6">
           <DialogTitle className="text-lg font-bold">주간 리포트 생성</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
           <div>
             <label className="text-sm font-semibold mb-2 block">Weekly Focus</label>
             <Textarea
@@ -352,7 +352,7 @@ export function WeeklyReport({ open, onOpenChange, tasks }: WeeklyReportProps) {
               </Button>
             </div>
             <pre
-              className="text-xs bg-muted p-4 rounded-md overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed"
+              className="max-w-full whitespace-pre-wrap break-all rounded-md bg-muted p-3 font-mono text-xs leading-relaxed sm:p-4"
               data-testid="text-report-preview"
             >
               {preview}

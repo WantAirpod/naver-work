@@ -119,8 +119,8 @@ export default function OfficePage() {
           <Button variant="ghost" size="sm" onClick={() => setMonth(startOfMonth(new Date()))}>이번 달</Button>
         </div>
 
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Card className="p-4 col-span-2 lg:col-span-1">
+        <section className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
+          <Card className="col-span-1 p-4 min-[360px]:col-span-2 lg:col-span-1">
             <p className="text-xs text-muted-foreground mb-2">회사 지정 출근 횟수</p>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => update({ target: Math.max(0, plan.target - 1) })}><Minus className="w-3.5 h-3.5" /></Button>
@@ -139,10 +139,10 @@ export default function OfficePage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
               <div><h3 className="font-semibold flex items-center gap-2"><CalendarDays className="w-4 h-4" />날짜 선택</h3><p className="text-xs text-muted-foreground mt-1">출근, 재택, 반차 또는 휴가를 고른 뒤 날짜를 눌러주세요.</p></div>
               <div className="grid grid-cols-4 bg-muted rounded-lg p-1 text-sm">
-                <button onClick={() => setMode("planned")} className={cn("px-4 py-2 rounded-md transition", mode === "planned" && "bg-card shadow-sm font-semibold text-primary")}>출근일</button>
-                <button onClick={() => setMode("remote")} className={cn("px-4 py-2 rounded-md transition", mode === "remote" && "bg-card shadow-sm font-semibold text-sky-600")}>재택일</button>
-                <button onClick={() => setMode("halfVacation")} className={cn("px-4 py-2 rounded-md transition", mode === "halfVacation" && "bg-card shadow-sm font-semibold text-orange-600")}>반차</button>
-                <button onClick={() => setMode("vacation")} className={cn("px-4 py-2 rounded-md transition", mode === "vacation" && "bg-card shadow-sm font-semibold text-amber-600")}>휴가일</button>
+                <button onClick={() => setMode("planned")} className={cn("rounded-md px-1.5 py-2 text-xs transition sm:px-4 sm:text-sm", mode === "planned" && "bg-card shadow-sm font-semibold text-primary")}>출근일</button>
+                <button onClick={() => setMode("remote")} className={cn("rounded-md px-1.5 py-2 text-xs transition sm:px-4 sm:text-sm", mode === "remote" && "bg-card shadow-sm font-semibold text-sky-600")}>재택일</button>
+                <button onClick={() => setMode("halfVacation")} className={cn("rounded-md px-1.5 py-2 text-xs transition sm:px-4 sm:text-sm", mode === "halfVacation" && "bg-card shadow-sm font-semibold text-orange-600")}>반차</button>
+                <button onClick={() => setMode("vacation")} className={cn("rounded-md px-1.5 py-2 text-xs transition sm:px-4 sm:text-sm", mode === "vacation" && "bg-card shadow-sm font-semibold text-amber-600")}>휴가일</button>
               </div>
             </div>
             <div className="grid grid-cols-7 mb-1">{weekdays.map((d, i) => <div key={d} className={cn("text-center text-xs py-2 text-muted-foreground", i === 0 && "text-red-500", i === 6 && "text-blue-500")}>{d}</div>)}</div>
@@ -155,7 +155,7 @@ export default function OfficePage() {
                 const vacation = plan.vacations.includes(ymd);
                 const halfVacation = plan.halfVacations.includes(ymd);
                 const remote = plan.remote.includes(ymd);
-                return <button key={ymd} onClick={() => toggleDate(ymd)} className={cn("relative min-h-14 sm:min-h-20 rounded-lg border text-sm text-left p-2 transition hover:border-primary/50 hover:bg-muted/50", planned && "border-primary bg-primary/5", remote && "border-sky-400 bg-sky-50 dark:bg-sky-950/20", halfVacation && "border-orange-400 bg-orange-50 dark:bg-orange-950/20", vacation && "border-amber-400 bg-amber-50 dark:bg-amber-950/20", dow === 0 && "text-red-500", dow === 6 && "text-blue-500")}>
+                return <button key={ymd} onClick={() => toggleDate(ymd)} className={cn("relative min-h-14 rounded-lg border p-1 text-left text-xs transition hover:border-primary/50 hover:bg-muted/50 sm:min-h-20 sm:p-2 sm:text-sm", planned && "border-primary bg-primary/5", remote && "border-sky-400 bg-sky-50 dark:bg-sky-950/20", halfVacation && "border-orange-400 bg-orange-50 dark:bg-orange-950/20", vacation && "border-amber-400 bg-amber-50 dark:bg-amber-950/20", dow === 0 && "text-red-500", dow === 6 && "text-blue-500")}>
                   <span className="font-medium">{day}</span>
                   {planned && <span className="absolute left-1.5 right-1.5 bottom-1.5 rounded bg-primary text-primary-foreground text-[10px] sm:text-xs py-0.5 text-center">출근</span>}
                   {remote && <span className="absolute left-1.5 right-1.5 bottom-1.5 rounded bg-sky-500 text-white text-[10px] sm:text-xs py-0.5 text-center">재택</span>}
