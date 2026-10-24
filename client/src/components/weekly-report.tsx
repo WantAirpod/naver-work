@@ -21,7 +21,7 @@ import {
   PlayCircle,
   CheckCircle2,
 } from "lucide-react";
-import { extractTicketNumber, cn } from "@/lib/utils";
+import { getTicketLabel, cn } from "@/lib/utils";
 
 interface ReportGroup {
   id: string;
@@ -251,7 +251,7 @@ export function WeeklyReport({ open, onOpenChange, tasks }: WeeklyReportProps) {
                       {isInThisGroup && <Check className="w-3 h-3 text-primary-foreground" />}
                     </div>
                     <span className="text-xs font-mono text-primary font-semibold shrink-0">
-                      #{extractTicketNumber(task.ticketUrl)}
+                      {getTicketLabel(task.ticketUrl)}
                     </span>
                     <span className="text-xs truncate">{task.title}</span>
                   </div>

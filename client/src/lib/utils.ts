@@ -5,14 +5,63 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+const JIRA_KEY = /^[A-Z][A-Z0-9_]+-\d+$/;
+
+function toUrl(url: string): URL | null {
+  try {
+    return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
+  } catch {
+    return null;
+  }
+}
+
+export function extractJiraKey(url: string | null | undefined): string {
+  const value = url?.trim();
+  if (!value) return "";
+  if (JIRA_KEY.test(value.toUpperCase())) return value.toUpperCase();
+  const urlObj = toUrl(value);
+  if (!urlObj) return "";
+  const param = urlObj.searchParams.get("selectedIssue") || urlObj.searchParams.get("issueKey");
+  if (param && JIRA_KEY.test(param.toUpperCase())) return param.toUpperCase();
+  const segments = urlObj.pathname.split("/").filter(Boolean);
+  const browseIdx = segments.findIndex((s) => s.toLowerCase() === "browse");
+  const browseKey = browseIdx >= 0 ? segments[browseIdx + 1]?.toUpperCase() : undefined;
+  if (browseKey && JIRA_KEY.test(browseKey)) return browseKey;
+  return segments.find((s) => JIRA_KEY.test(s)) ?? "";
+}
+
 export function extractTicketNumber(url: string | null | undefined): string {
-  if (!url) return "";
-  const match = url.match(/\/(\d+)$/);
-  return match ? match[1] : url;
+  const value = url?.trim();
+  if (!value) return "";
+  const jiraKey = extractJiraKey(value);
+  if (jiraKey) return jiraKey;
+  return value.match(/\/(\d+)\/?(?:[?#].*)?$/)?.[1] ?? "";
+}
+
+export function getTicketLabel(url: string | null | undefined): string {
+  const value = url?.trim();
+  if (!value) return "Todo";
+  const jiraKey = extractJiraKey(value);
+  if (jiraKey) return jiraKey;
+  const number = extractTicketNumber(value);
+  if (number) return `#${number}`;
+  const urlObj = toUrl(value);
+  return urlObj?.pathname.split("/").filter(Boolean).pop() || urlObj?.hostname || value;
+}
+
+export function getTicketLinkText(url: string | null | undefined): string {
+  const value = url?.trim();
+  if (!value) return "";
+  const jiraKey = extractJiraKey(value);
+  if (jiraKey) return `${extractRepoPath(value)}/browse/${jiraKey}`;
+  const number = extractTicketNumber(value);
+  const repo = extractRepoPath(value);
+  return number && repo ? `${repo}/issues/${number}` : repo || value;
 }
 
 export function extractRepoPath(url: string | null | undefined): string {
   if (!url) return "";
+  if (extractJiraKey(url)) return /[./]/.test(url) ? toUrl(url)?.hostname ?? "Jira" : "Jira";
   try {
     const urlObj = new URL(url);
     const parts = urlObj.pathname.split("/").filter(Boolean);

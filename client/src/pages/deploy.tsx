@@ -30,7 +30,7 @@ import {
   ListTodo,
   X,
 } from "lucide-react";
-import { extractTicketNumber, extractRepoPath, cn } from "@/lib/utils";
+import { extractTicketNumber, extractRepoPath, getTicketLabel, cn } from "@/lib/utils";
 import {
   getUpcomingDeployDate,
   getDeployRounds,
@@ -261,7 +261,7 @@ export default function DeployPage() {
                           t.ticketUrl ? "text-primary" : "text-amber-600 dark:text-amber-400"
                         )}
                       >
-                        {t.ticketUrl ? `#${extractTicketNumber(t.ticketUrl)}` : "Todo"}
+                        {getTicketLabel(t.ticketUrl)}
                       </span>
                       <span className="text-xs truncate">{t.title}</span>
                     </div>
@@ -325,7 +325,7 @@ export default function DeployPage() {
                                 isTodo ? "text-amber-600 dark:text-amber-400" : "text-primary"
                               )}
                             >
-                              {isTodo ? "Todo" : `#${extractTicketNumber(task.ticketUrl)}`}
+                              {getTicketLabel(task.ticketUrl)}
                             </span>
                           </div>
                         </TableCell>

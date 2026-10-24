@@ -1,7 +1,7 @@
 import type { Task } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn, extractTicketNumber, getPriorityConfig } from "@/lib/utils";
+import { cn, getPriorityConfig, getTicketLabel } from "@/lib/utils";
 import {
   CheckCircle2,
   ChevronDown,
@@ -57,7 +57,7 @@ export function CompactTaskRow({
 }: CompactTaskRowProps) {
   const priority = getPriorityConfig(task.priority);
   const isTodo = !task.ticketUrl;
-  const label = isTodo ? "Todo" : `#${extractTicketNumber(task.ticketUrl)}`;
+  const label = getTicketLabel(task.ticketUrl);
 
   return (
     <div className={cn(

@@ -40,7 +40,7 @@ import {
   FolderOpen,
   X,
 } from "lucide-react";
-import { cn, extractTicketNumber, getPriorityConfig } from "@/lib/utils";
+import { cn, getPriorityConfig, getTicketLabel } from "@/lib/utils";
 import { Link } from "wouter";
 
 export default function Home() {
@@ -476,7 +476,6 @@ export default function Home() {
 
   const renderBoardCard = (task: Task) => {
     const priority = getPriorityConfig(task.priority);
-    const ticketNumber = task.ticketUrl ? extractTicketNumber(task.ticketUrl) : "Todo";
     const commentCount = getCommentsForTask(task.id).length;
     const prCount = getPrsForTask(task.id).length;
     const childTasks = task.isEpic ? tasks.filter((child) => child.parentEpicId === task.id) : [];
@@ -491,7 +490,7 @@ export default function Home() {
           data-testid={`board-task-${task.id}`}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[11px] font-semibold text-primary">{task.ticketUrl ? `#${ticketNumber}` : ticketNumber}</span>
+            <span className="font-mono text-[11px] font-semibold text-primary">{getTicketLabel(task.ticketUrl)}</span>
             <Badge variant="outline" className={cn("shrink-0 px-1.5 text-[10px]", priority.className)}>{priority.label}</Badge>
           </div>
           <div className="mt-1.5 flex items-start gap-1.5">

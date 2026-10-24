@@ -38,7 +38,8 @@ import {
 } from "lucide-react";
 import {
   extractTicketNumber,
-  extractRepoPath,
+  getTicketLabel,
+  getTicketLinkText,
   formatDate,
   getPriorityConfig,
   cn,
@@ -110,9 +111,7 @@ export function TaskDetail({
   const [editPriority, setEditPriority] = useState(task.priority);
 
   const isTodo = !task.ticketUrl;
-  const ticketNumber = isTodo ? "TODO" : extractTicketNumber(task.ticketUrl);
-  const getTaskLabel = (t: Task) => t.ticketUrl ? `#${extractTicketNumber(t.ticketUrl)}` : "Todo";
-  const repoPath = isTodo ? "" : extractRepoPath(task.ticketUrl);
+  const getTaskLabel = (t: Task) => getTicketLabel(t.ticketUrl);
   const priority = getPriorityConfig(task.priority);
   const isCompleted = task.status === "completed";
 
@@ -168,7 +167,7 @@ export function TaskDetail({
               "text-sm font-mono font-bold",
               isTodo ? "text-amber-600 dark:text-amber-400" : "text-primary"
             )} data-testid="text-detail-ticket">
-              {isTodo ? "Todo" : `#${ticketNumber}`}
+              {getTicketLabel(task.ticketUrl)}
             </span>
           </div>
           <Badge variant="outline" className={cn("text-xs", priority.className)} data-testid="badge-detail-priority">
@@ -246,7 +245,7 @@ export function TaskDetail({
                     <div className="flex items-center gap-1.5 mt-1">
                       <span className="text-xs text-muted-foreground">티켓 번호:</span>
                       <span className="px-1.5 py-0.5 rounded bg-primary/10 text-xs font-mono font-semibold text-primary dark:bg-primary/20">
-                        #{extractTicketNumber(editTicketUrl)}
+                        {getTicketLabel(editTicketUrl)}
                       </span>
                     </div>
                   )}
@@ -330,7 +329,7 @@ export function TaskDetail({
                     data-testid="link-detail-ticket"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    {repoPath}/issues/{ticketNumber}
+                    {getTicketLinkText(task.ticketUrl)}
                   </a>
                 )}
                 <span className="text-xs text-muted-foreground" data-testid="text-detail-date">
@@ -762,7 +761,7 @@ export function TaskDetail({
                     <div className="flex items-center gap-1.5 mt-1">
                       <span className="text-xs text-muted-foreground">티켓 번호:</span>
                       <span className="px-1.5 py-0.5 rounded bg-primary/10 text-xs font-mono font-semibold text-primary dark:bg-primary/20">
-                        #{extractTicketNumber(newRelTicketUrl)}
+                        {getTicketLabel(newRelTicketUrl)}
                       </span>
                     </div>
                   )}

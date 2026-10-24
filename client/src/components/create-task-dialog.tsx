@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, ListTodo, Ticket } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, extractTicketNumber, getTicketLabel } from "@/lib/utils";
 
 const formSchema = z.object({
   title: z.string().min(1, "제목을 입력하세요"),
@@ -40,11 +40,6 @@ interface CreateTaskDialogProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: { title: string; ticketUrl: string; referenceUrl?: string | null; ticketNumber: string; description?: string; priority: string; status: string }) => void;
   isPending?: boolean;
-}
-
-function extractTicketNum(url: string): string {
-  const match = url.match(/\/(\d+)$/);
-  return match ? match[1] : "";
 }
 
 function normalizeUrl(url?: string): string | null {
@@ -74,7 +69,7 @@ export function CreateTaskDialog({
   });
 
   const ticketUrl = form.watch("ticketUrl") || "";
-  const previewTicket = extractTicketNum(ticketUrl);
+  const previewTicket = extractTicketNumber(ticketUrl);
 
   const handleSubmit = (data: FormData) => {
     if (mode === "ticket" && !data.ticketUrl?.trim()) {
@@ -92,7 +87,7 @@ export function CreateTaskDialog({
         status: data.status,
       });
     } else {
-      const ticketNumber = extractTicketNum(data.ticketUrl || "");
+      const ticketNumber = extractTicketNumber(data.ticketUrl || "");
       onSubmit({
         title: data.title,
         ticketUrl: data.ticketUrl || "",
@@ -169,7 +164,7 @@ export function CreateTaskDialog({
                       <div className="flex items-center gap-1.5 mt-1">
                         <span className="text-xs text-muted-foreground">티켓 번호:</span>
                         <span className="px-1.5 py-0.5 rounded bg-primary/10 text-xs font-mono font-semibold text-primary dark:bg-primary/20">
-                          #{previewTicket}
+                          {getTicketLabel(ticketUrl)}
                         </span>
                       </div>
                     )}

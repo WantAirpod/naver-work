@@ -18,7 +18,7 @@ import {
   ChevronDown,
   Rocket,
 } from "lucide-react";
-import { extractTicketNumber, extractRepoPath, formatDate, getPriorityConfig, cn } from "@/lib/utils";
+import { extractRepoPath, formatDate, getPriorityConfig, getTicketLabel, cn } from "@/lib/utils";
 import { formatDeployDateLabel } from "@/lib/deploy-schedule";
 
 interface TaskCardProps {
@@ -53,7 +53,6 @@ export function TaskCard({
   onDelete,
 }: TaskCardProps) {
   const isTodo = !task.ticketUrl;
-  const ticketNumber = isTodo ? "TODO" : extractTicketNumber(task.ticketUrl);
   const repoPath = isTodo ? "" : extractRepoPath(task.ticketUrl);
   const priority = getPriorityConfig(task.priority);
   const isCompleted = task.status === "completed";
@@ -101,7 +100,7 @@ export function TaskCard({
                 "text-xs font-mono font-semibold",
                 isTodo ? "text-amber-600 dark:text-amber-400" : "text-primary"
               )} data-testid={`text-ticket-${task.id}`}>
-                {isTodo ? "Todo" : `#${ticketNumber}`}
+                {getTicketLabel(task.ticketUrl)}
               </span>
             </div>
             <Badge variant="outline" className={cn("text-xs", priority.className)} data-testid={`badge-priority-${task.id}`}>
