@@ -92,12 +92,10 @@ export function formatDate(date: string | Date): string {
 export function getPriorityConfig(priority: string) {
   switch (priority) {
     case "high":
-      return { label: "높음", className: "bg-destructive/10 text-destructive dark:bg-destructive/20" };
-    case "medium":
-      return { label: "보통", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" };
+      return { label: "높음", className: "bg-destructive/10 text-destructive dark:bg-destructive/20", accent: "border-l-red-500 bg-red-50/60 dark:bg-red-950/20", dot: "bg-red-500" };
     case "low":
-      return { label: "낮음", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" };
+      return { label: "낮음", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400", accent: "border-l-blue-400 bg-card", dot: "bg-blue-400" };
     default:
-      return { label: "보통", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" };
+      return { label: "보통", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400", accent: "border-l-amber-400 bg-card", dot: "bg-amber-400" };
   }
 }

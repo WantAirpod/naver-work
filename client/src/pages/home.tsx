@@ -418,7 +418,8 @@ export default function Home() {
           onDrop={(e) => handleDrop(e, task.id)}
           onDragEnd={handleDragEnd}
           className={cn(
-            "flex items-stretch gap-0 transition-all duration-150",
+            "flex items-stretch gap-0 overflow-hidden rounded-md border border-l-4 transition-all duration-150",
+            getPriorityConfig(task.priority).accent,
             draggedTaskId === task.id && "opacity-40",
             dragOverTaskId === task.id && draggedTaskId !== task.id && "ring-2 ring-primary ring-inset"
           )}
@@ -799,7 +800,9 @@ export default function Home() {
                   <div className="space-y-2.5">
                     {listGroups.map((group, index) => {
                       const expanded = isGroupExpanded(group.key);
-                      const highCount = group.tasks.filter((task) => task.priority === "high").length;
+                      const priorityCounts = (["high", "medium", "low"] as const)
+                        .map((level) => ({ level, count: group.tasks.filter((task) => (task.priority === "high" || task.priority === "low" ? task.priority : "medium") === level).length }))
+                        .filter((item) => item.count > 0);
                       const preview = group.tasks.map((task) => task.title.replace(/^\[[^\]]+\]\s*/, "").trim()).filter(Boolean).slice(0, 2).join(" · ");
                       return (
                         <section key={group.key} className="overflow-hidden rounded-lg border bg-card" data-testid={`task-group-${group.key}`}>
@@ -814,14 +817,19 @@ export default function Home() {
                                 </span>
                                 {!expanded && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{preview}</span>}
                               </span>
-                              {highCount > 0 && <span className="hidden shrink-0 text-[11px] text-red-600 dark:text-red-400 sm:inline">높음 {highCount}</span>}
+                              <span className="hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground sm:flex">
+                                {priorityCounts.map(({ level, count }) => {
+                                  const config = getPriorityConfig(level);
+                                  return <span key={level} className="inline-flex items-center gap-1" title={`${config.label} ${count}건`}><span className={cn("h-2 w-2 rounded-full", config.dot)} />{count}</span>;
+                                })}
+                              </span>
                               <Badge variant="secondary" className="shrink-0 tabular-nums">{group.tasks.length}</Badge>
                             </button>
                             {group.epic && !group.tasks.some((task) => task.id === group.epic!.id) && (
                               <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={() => handleSelectTask(group.epic!)}>Epic 상세</Button>
                             )}
                           </div>
-                          {expanded && <div id={`group-items-${index}`} className="divide-y border-t bg-background/50">
+                          {expanded && <div id={`group-items-${index}`} className="space-y-1.5 border-t bg-muted/30 py-2 pl-5 pr-2 sm:pl-9 sm:pr-3">
                             {group.tasks.map(renderTaskItem)}
                           </div>}
                         </section>

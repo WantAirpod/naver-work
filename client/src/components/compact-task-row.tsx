@@ -62,7 +62,7 @@ export function CompactTaskRow({
   return (
     <div className={cn(
       "group flex items-center gap-1.5 bg-card px-2 py-2 transition-colors hover:bg-muted/30 sm:gap-2 sm:px-3",
-      inGroup ? "border-0 bg-transparent px-3 py-2.5 shadow-none sm:px-4" : "rounded-lg border shadow-sm hover:border-primary/40",
+      inGroup ? "border-0 bg-transparent px-2 py-1.5 shadow-none sm:px-3" : "rounded-lg border shadow-sm hover:border-primary/40",
       task.isEpic && !inGroup && "border-violet-200 dark:border-violet-800",
       task.status === "completed" && "opacity-70",
     )} data-testid={`compact-task-${task.id}`}>
