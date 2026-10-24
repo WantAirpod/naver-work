@@ -19,7 +19,6 @@ import {
   X,
   Inbox,
   PlayCircle,
-  Eye,
   CheckCircle2,
 } from "lucide-react";
 import { extractTicketNumber, cn } from "@/lib/utils";
@@ -30,7 +29,7 @@ interface ReportGroup {
   taskIds: number[];
 }
 
-type SectionKey = "backlog" | "progress" | "review" | "done";
+type SectionKey = "backlog" | "progress" | "done";
 
 interface WeeklyReportProps {
   open: boolean;
@@ -40,8 +39,7 @@ interface WeeklyReportProps {
 
 const SECTION_CONFIG: Record<SectionKey, { title: string; emoji: string; icon: typeof Inbox }> = {
   done: { title: "Done (최근 1주 완료)", emoji: "✅", icon: CheckCircle2 },
-  review: { title: "Review (검토 중)", emoji: "👀", icon: Eye },
-  progress: { title: "In Progress (작업 중)", emoji: "🔧", icon: PlayCircle },
+  progress: { title: "In Progress (진행 중)", emoji: "🔧", icon: PlayCircle },
   backlog: { title: "Backlog (진행 전)", emoji: "📋", icon: Inbox },
 };
 
@@ -66,11 +64,6 @@ export function WeeklyReport({ open, onOpenChange, tasks }: WeeklyReportProps) {
     [tasks, oneWeekAgo]
   );
 
-  const reviewTasks = useMemo(
-    () => tasks.filter((t) => t.status === "review"),
-    [tasks]
-  );
-
   const inProgressTasks = useMemo(
     () => tasks.filter((t) => t.status === "in_progress"),
     [tasks]
@@ -83,14 +76,12 @@ export function WeeklyReport({ open, onOpenChange, tasks }: WeeklyReportProps) {
 
   const sectionTasks: Record<SectionKey, Task[]> = {
     done: doneTasks,
-    review: reviewTasks,
     progress: inProgressTasks,
     backlog: backlogTasks,
   };
 
   const [sectionGroups, setSectionGroups] = useState<Record<SectionKey, ReportGroup[]>>({
     done: [{ id: "done-1", label: "", taskIds: [] }],
-    review: [{ id: "review-1", label: "", taskIds: [] }],
     progress: [{ id: "prog-1", label: "", taskIds: [] }],
     backlog: [{ id: "backlog-1", label: "", taskIds: [] }],
   });
@@ -100,7 +91,6 @@ export function WeeklyReport({ open, onOpenChange, tasks }: WeeklyReportProps) {
     setCopied(false);
     setSectionGroups({
       done: [{ id: "done-1", label: "", taskIds: doneTasks.map(t => t.id) }],
-      review: [{ id: "review-1", label: "", taskIds: reviewTasks.map(t => t.id) }],
       progress: [{ id: "prog-1", label: "", taskIds: inProgressTasks.map(t => t.id) }],
       backlog: [{ id: "backlog-1", label: "", taskIds: backlogTasks.map(t => t.id) }],
     });
@@ -162,7 +152,6 @@ export function WeeklyReport({ open, onOpenChange, tasks }: WeeklyReportProps) {
 
     const sections: { key: SectionKey; emoji: string; title: string }[] = [
       { key: "done", emoji: "\u2705", title: "Done" },
-      { key: "review", emoji: "\uD83D\uDC40", title: "Review" },
       { key: "progress", emoji: "\uD83D\uDD27", title: "In Progress" },
       { key: "backlog", emoji: "\uD83D\uDCCB", title: "Backlog" },
     ];
@@ -287,51 +276,51 @@ export function WeeklyReport({ open, onOpenChange, tasks }: WeeklyReportProps) {
 
   const preview = generateReport();
 
-  const sectionOrder: SectionKey[] = ["done", "review", "progress", "backlog"];
+  const sectionOrder: SectionKey[] = ["done", "progress", "backlog"];
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent className="flex h-[min(840px,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-[700px]">
+      <DialogContent className="flex h-[min(860px,calc(100dvh-2rem))] max-w-[700px] flex-col gap-0 overflow-hidden p-0 sm:p-0 lg:max-w-[1120px]">
         <DialogHeader className="shrink-0 border-b px-4 py-4 pr-12 sm:px-6">
           <DialogTitle className="text-lg font-bold">주간 리포트 생성</DialogTitle>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
-          <div>
-            <label className="text-sm font-semibold mb-2 block">Weekly Focus</label>
-            <Textarea
-              value={weeklyFocus}
-              onChange={(e) => setWeeklyFocus(e.target.value)}
-              placeholder="이번 주 주요 목표를 입력하세요"
-              className="resize-none min-h-[60px]"
-              data-testid="input-weekly-focus"
-            />
+        <div className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)] lg:overflow-hidden">
+          <div className="space-y-5 p-4 sm:p-6 lg:min-h-0 lg:overflow-y-auto">
+            <div>
+              <label className="text-sm font-semibold mb-2 block">Weekly Focus</label>
+              <Textarea
+                value={weeklyFocus}
+                onChange={(e) => setWeeklyFocus(e.target.value)}
+                placeholder="이번 주 주요 목표를 입력하세요"
+                className="resize-none min-h-[60px]"
+                data-testid="input-weekly-focus"
+              />
+            </div>
+
+            {sectionOrder.map((sectionKey) => {
+              const config = SECTION_CONFIG[sectionKey];
+              const tasks = sectionTasks[sectionKey];
+              const groups = sectionGroups[sectionKey];
+              const Icon = config.icon;
+              return (
+                <div key={sectionKey}>
+                  <Separator className="mb-4" />
+                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                    <label className="text-sm font-semibold flex items-center gap-1.5">
+                      <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                      {config.title}
+                    </label>
+                    <Badge variant="secondary" className="text-xs">{tasks.length}건</Badge>
+                  </div>
+                  {renderGroupSection(sectionKey, groups, tasks)}
+                </div>
+              );
+            })}
           </div>
 
-          {sectionOrder.map((sectionKey) => {
-            const config = SECTION_CONFIG[sectionKey];
-            const tasks = sectionTasks[sectionKey];
-            const groups = sectionGroups[sectionKey];
-            const Icon = config.icon;
-            return (
-              <div key={sectionKey}>
-                <Separator className="mb-4" />
-                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                  <label className="text-sm font-semibold flex items-center gap-1.5">
-                    <Icon className="w-3.5 h-3.5 text-muted-foreground" />
-                    {config.title}
-                  </label>
-                  <Badge variant="secondary" className="text-xs">{tasks.length}건</Badge>
-                </div>
-                {renderGroupSection(sectionKey, groups, tasks)}
-              </div>
-            );
-          })}
-
-          <Separator />
-
-          <div>
-            <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+          <div className="border-t bg-muted/30 p-4 sm:p-6 lg:flex lg:min-h-0 lg:flex-col lg:border-l lg:border-t-0">
+            <div className="flex shrink-0 items-center justify-between gap-2 mb-2 flex-wrap">
               <label className="text-sm font-semibold">미리보기</label>
               <Button
                 size="sm"
@@ -352,7 +341,7 @@ export function WeeklyReport({ open, onOpenChange, tasks }: WeeklyReportProps) {
               </Button>
             </div>
             <pre
-              className="max-w-full whitespace-pre-wrap break-all rounded-md bg-muted p-3 font-mono text-xs leading-relaxed sm:p-4"
+              className="max-w-full whitespace-pre-wrap break-words rounded-md border bg-background p-3 font-mono text-xs leading-relaxed sm:p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
               data-testid="text-report-preview"
             >
               {preview}

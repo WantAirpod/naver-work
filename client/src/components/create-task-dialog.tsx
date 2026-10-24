@@ -30,7 +30,7 @@ const formSchema = z.object({
   referenceUrl: z.string().optional(),
   description: z.string().optional(),
   priority: z.enum(["high", "medium", "low"]),
-  status: z.enum(["backlog", "in_progress", "review"]),
+  status: z.enum(["backlog", "in_progress"]),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -268,8 +268,7 @@ export function CreateTaskDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="in_progress">작업 중</SelectItem>
-                        <SelectItem value="review">검토 중</SelectItem>
+                        <SelectItem value="in_progress">진행 중</SelectItem>
                         <SelectItem value="backlog">진행 전</SelectItem>
                       </SelectContent>
                     </Select>

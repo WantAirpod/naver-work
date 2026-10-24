@@ -109,7 +109,7 @@ export default function DeployPage() {
   }, [taskPrs]);
 
   const roundTasks = useMemo(
-    () => tasks.filter((t) => t.deployDate === roundYmd),
+    () => tasks.filter((t) => t.status === "in_progress" && t.deployDate === roundYmd),
     [tasks, roundYmd]
   );
 
@@ -129,7 +129,7 @@ export default function DeployPage() {
   const candidates = useMemo(() => {
     const q = pickerQuery.trim().toLowerCase();
     return tasks
-      .filter((t) => t.status !== "completed" && !t.deployDate)
+      .filter((t) => t.status === "in_progress" && !t.deployDate)
       .filter(
         (t) =>
           !q ||

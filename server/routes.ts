@@ -21,7 +21,7 @@ const updateTaskSchema = z.object({
   referenceUrl: z.string().url().nullable().optional(),
   ticketNumber: z.string().optional(),
   description: z.string().nullable().optional(),
-  status: z.enum(["backlog", "in_progress", "review", "completed"]).optional(),
+  status: z.enum(["backlog", "in_progress", "completed"]).optional(),
   priority: z.enum(["high", "medium", "low"]).optional(),
   sortOrder: z.number().int().optional(),
   prUrl: z.string().nullable().optional(),
@@ -69,7 +69,7 @@ export async function registerRoutes(
     const updateData: Record<string, any> = { ...parsed.data };
     if (updateData.status === "completed") {
       updateData.completedAt = new Date();
-    } else if (updateData.status === "backlog" || updateData.status === "in_progress" || updateData.status === "review") {
+    } else if (updateData.status === "backlog" || updateData.status === "in_progress") {
       updateData.completedAt = null;
     }
     const taskId = Number(req.params.id);

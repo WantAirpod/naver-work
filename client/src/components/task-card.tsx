@@ -12,7 +12,6 @@ import {
   GitPullRequest,
   PlayCircle,
   Inbox,
-  Eye,
   Crown,
   ListTodo,
   ChevronRight,
@@ -112,12 +111,6 @@ export function TaskCard({
               <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">
                 <Inbox className="w-3 h-3 mr-1" />
                 진행 전
-              </Badge>
-            )}
-            {task.status === "review" && (
-              <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-600 dark:text-orange-400 dark:bg-orange-500/20">
-                <Eye className="w-3 h-3 mr-1" />
-                검토 중
               </Badge>
             )}
             {isCompleted && (

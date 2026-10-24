@@ -29,7 +29,6 @@ import {
   Save,
   Inbox,
   PlayCircle,
-  Eye,
   Crown,
   ChevronRight,
   ChevronDown,
@@ -194,13 +193,7 @@ export function TaskDetail({
               <SelectItem value="in_progress">
                 <span className="flex items-center gap-1.5">
                   <PlayCircle className="w-3 h-3" />
-                  작업 중
-                </span>
-              </SelectItem>
-              <SelectItem value="review">
-                <span className="flex items-center gap-1.5">
-                  <Eye className="w-3 h-3" />
-                  검토 중
+                  진행 중
                 </span>
               </SelectItem>
               <SelectItem value="completed">
@@ -588,7 +581,6 @@ export function TaskDetail({
                         const statusConfig: Record<string, { icon: typeof CheckCircle2; color: string }> = {
                           backlog: { icon: Inbox, color: "text-muted-foreground" },
                           in_progress: { icon: PlayCircle, color: "text-blue-500" },
-                          review: { icon: Eye, color: "text-orange-500" },
                           completed: { icon: CheckCircle2, color: "text-primary" },
                         };
                         const sc = statusConfig[child.status] || statusConfig.backlog;

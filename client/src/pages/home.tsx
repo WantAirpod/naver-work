@@ -5,13 +5,13 @@ import type { Task, Comment, TaskRelation, TaskPr } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { TaskCard } from "@/components/task-card";
+import { CompactTaskRow } from "@/components/compact-task-row";
 import { TaskDetail } from "@/components/task-detail";
 import { CreateTaskDialog } from "@/components/create-task-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -29,16 +29,16 @@ import {
   Inbox,
   PlayCircle,
   FileText,
-  Eye,
   Terminal,
-  TreePine,
   Rocket,
   Building2,
   GitPullRequest,
   MessageSquare,
   Columns3,
-  List,
-  Settings2,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  X,
 } from "lucide-react";
 import { cn, extractTicketNumber, getPriorityConfig } from "@/lib/utils";
 import { Link } from "wouter";
@@ -52,10 +52,14 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("in_progress");
   const [viewMode, setViewMode] = useState<"board" | "list">("list");
-  const [completedFilter, setCompletedFilter] = useState<"7d" | "30d" | "all">("30d");
+  const [highPriorityOnly, setHighPriorityOnly] = useState(false);
+  const [todoOnly, setTodoOnly] = useState(false);
+  const [expandedBoardColumns, setExpandedBoardColumns] = useState<Set<string>>(new Set());
+  const [completedFilter, setCompletedFilter] = useState<"7d" | "30d" | "all">("all");
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<number | null>(null);
   const [expandedEpics, setExpandedEpics] = useState<Set<number>>(new Set());
+  const [groupExpansion, setGroupExpansion] = useState<Record<string, boolean>>({});
   const dragCounter = useRef(0);
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery<Task[]>({
@@ -109,8 +113,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       const labels: Record<string, string> = {
         backlog: "진행 전으로 이동했습니다",
-        in_progress: "작업 중으로 이동했습니다",
-        review: "검토 중으로 이동했습니다",
+        in_progress: "진행 중으로 이동했습니다",
         completed: "작업이 완료되었습니다",
       };
       toast({ title: labels[variables.status] || "상태가 변경되었습니다" });
@@ -257,41 +260,60 @@ export default function Home() {
     });
   }, []);
 
-  const filteredTasks = useMemo(() => {
-    const statusFilter = activeTab;
+  const query = searchQuery.trim().toLowerCase();
+  const hasActiveFilters = Boolean(query) || highPriorityOnly || todoOnly;
+  const matchesTask = useCallback((task: Task) => {
+    if (highPriorityOnly && task.priority !== "high") return false;
+    if (todoOnly && task.ticketUrl) return false;
+    if (!query) return true;
+    return Boolean(task.title.toLowerCase().includes(query) ||
+      task.ticketNumber.toLowerCase().includes(query) ||
+      task.description?.toLowerCase().includes(query) ||
+      task.ticketUrl?.toLowerCase().includes(query) ||
+      task.referenceUrl?.toLowerCase().includes(query));
+  }, [highPriorityOnly, todoOnly, query]);
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return tasks
-        .filter((t) => t.status === statusFilter)
-        .filter(
-          (t) =>
-            t.title.toLowerCase().includes(q) ||
-            t.ticketNumber.includes(q) ||
-            t.description?.toLowerCase().includes(q)
-        );
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => (query || task.status === activeTab) && matchesTask(task));
+  }, [tasks, activeTab, query, matchesTask]);
+
+  const listGroups = useMemo(() => {
+    type ListGroup = { key: string; label: string; epic?: Task; tasks: Task[]; kind: "epic" | "named" | "other" };
+    const groups = new Map<string, ListGroup>();
+    const epics = tasks.filter((task) => task.isEpic);
+    const epicByName = new Map(epics.map((epic) => [epic.title.replace(/^\[|\]$/g, "").trim().toLowerCase(), epic]));
+    const epicById = new Map(epics.map((epic) => [epic.id, epic]));
+
+    for (const task of filteredTasks) {
+      const titlePrefix = task.title.match(/^\[([^\]]+)\]/)?.[1]?.trim();
+      const epic = task.parentEpicId ? epicById.get(task.parentEpicId) : task.isEpic ? task : titlePrefix ? epicByName.get(titlePrefix.toLowerCase()) : undefined;
+      const key = epic ? `epic-${epic.id}` : titlePrefix ? `topic-${titlePrefix.toLowerCase()}` : "other";
+      const label = epic ? epic.title.replace(/^\[|\]$/g, "").trim() : titlePrefix || "기타 작업";
+      const kind = epic ? "epic" : titlePrefix ? "named" : "other";
+      if (!groups.has(key)) groups.set(key, { key, label, epic, tasks: [], kind });
+      groups.get(key)!.tasks.push(task);
     }
 
-    const tasksInTab = tasks.filter((t) => t.status === statusFilter);
-    const topLevel = tasksInTab.filter((t) => !t.parentEpicId);
+    return Array.from(groups.values()).sort((a, b) => {
+      const rank = { epic: 0, named: 1, other: 2 };
+      return rank[a.kind] - rank[b.kind];
+    });
+  }, [tasks, filteredTasks]);
 
-    const childrenInTab = tasksInTab.filter((t) => t.parentEpicId);
-    const epicParentIds = new Set(childrenInTab.map((t) => t.parentEpicId!));
-    const missingEpicParents = tasks.filter(
-      (t) => epicParentIds.has(t.id) && t.isEpic && t.status !== statusFilter && !topLevel.some((tl) => tl.id === t.id)
-    );
-
-    return [...topLevel, ...missingEpicParents];
-  }, [tasks, activeTab, searchQuery]);
-
-  const getChildTasksInTab = useCallback((epicId: number) => {
-    return tasks.filter(t => t.parentEpicId === epicId && (
-      (activeTab === "backlog" && t.status === "backlog") ||
-      (activeTab === "in_progress" && t.status === "in_progress") ||
-      (activeTab === "review" && t.status === "review") ||
-      (activeTab === "completed" && t.status === "completed")
-    ));
-  }, [tasks, activeTab]);
+  const groupStateKey = (groupKey: string) => `${query || activeTab}:${groupKey}`;
+  const isGroupExpanded = (groupKey: string) => groupExpansion[groupStateKey(groupKey)] ?? Boolean(query);
+  const allGroupsExpanded = listGroups.every((group) => isGroupExpanded(group.key));
+  const toggleGroup = (groupKey: string) => {
+    const key = groupStateKey(groupKey);
+    setGroupExpansion((current) => ({ ...current, [key]: !isGroupExpanded(groupKey) }));
+  };
+  const toggleAllGroups = () => {
+    setGroupExpansion((current) => {
+      const next = { ...current };
+      listGroups.forEach((group) => { next[groupStateKey(group.key)] = !allGroupsExpanded; });
+      return next;
+    });
+  };
 
   const getAllChildTasks = useCallback((epicId: number) => {
     return tasks.filter(t => t.parentEpicId === epicId);
@@ -348,7 +370,6 @@ export default function Home() {
 
   const backlogTasks = tasks.filter((t) => t.status === "backlog");
   const inProgressTasks = tasks.filter((t) => t.status === "in_progress");
-  const reviewTasks = tasks.filter((t) => t.status === "review");
   const completedTasks = tasks.filter((t) => t.status === "completed");
 
   const visibleCompletedTasks = useMemo(() => {
@@ -368,9 +389,6 @@ export default function Home() {
     return tasks.filter((t) => relatedIds.includes(t.id));
   };
 
-  const getRelatedCount = (taskId: number) =>
-    relations.filter((r) => r.sourceTaskId === taskId || r.targetTaskId === taskId).length;
-
   const getPrsForTask = (taskId: number) =>
     taskPrs.filter((p) => p.taskId === taskId);
 
@@ -386,30 +404,27 @@ export default function Home() {
 
   const showDetail = selectedTask !== null;
 
-  const renderTaskItem = (task: Task, isChild = false) => {
-    const childTasksInTab = task.isEpic ? getChildTasksInTab(task.id) : [];
+  const renderTaskItem = (task: Task) => {
     const allChildren = task.isEpic ? getAllChildTasks(task.id) : [];
-    const isExpanded = expandedEpics.has(task.id);
 
     return (
       <div key={task.id}>
         <div
-          draggable={!isChild && activeTab !== "completed" && !searchQuery.trim()}
-          onDragStart={!isChild ? (e) => handleDragStart(e, task.id) : undefined}
-          onDragOver={!isChild ? handleDragOver : undefined}
-          onDragEnter={!isChild ? () => handleDragEnter(task.id) : undefined}
-          onDragLeave={!isChild ? handleDragLeave : undefined}
-          onDrop={!isChild ? (e) => handleDrop(e, task.id) : undefined}
-          onDragEnd={!isChild ? handleDragEnd : undefined}
+          draggable={task.status !== "completed" && !hasActiveFilters}
+          onDragStart={(e) => handleDragStart(e, task.id)}
+          onDragOver={handleDragOver}
+          onDragEnter={() => handleDragEnter(task.id)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, task.id)}
+          onDragEnd={handleDragEnd}
           className={cn(
-            "flex items-stretch gap-0 rounded-md transition-all duration-150",
-            !isChild && draggedTaskId === task.id && "opacity-40",
-            !isChild && dragOverTaskId === task.id && draggedTaskId !== task.id && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-            isChild && "ml-6"
+            "flex items-stretch gap-0 transition-all duration-150",
+            draggedTaskId === task.id && "opacity-40",
+            dragOverTaskId === task.id && draggedTaskId !== task.id && "ring-2 ring-primary ring-inset"
           )}
           data-testid={`draggable-task-${task.id}`}
         >
-          {activeTab !== "completed" && !searchQuery.trim() && !isChild && (
+          {task.status !== "completed" && !hasActiveFilters && (
             <div
               className="flex items-center px-1 cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground shrink-0"
               data-testid={`drag-handle-${task.id}`}
@@ -417,59 +432,44 @@ export default function Home() {
               <GripVertical className="w-4 h-4" />
             </div>
           )}
-          {isChild && (
-            <div className="flex items-center px-1 shrink-0">
-              <TreePine className="w-3.5 h-3.5 text-violet-400" />
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <TaskCard
+          <div className="min-w-0 flex-1">
+            <CompactTaskRow
               task={task}
-              comments={getCommentsForTask(task.id)}
-              relatedCount={getRelatedCount(task.id)}
+              inGroup
+              commentCount={getCommentsForTask(task.id).length}
               prCount={getPrsForTask(task.id).length}
               childCount={allChildren.length}
-              isExpanded={isExpanded}
-              onToggleExpand={task.isEpic && allChildren.length > 0 ? () => toggleEpicExpanded(task.id) : undefined}
+              isExpanded={false}
+              showStatus={Boolean(query)}
               onSelect={handleSelectTask}
               onComplete={
-                activeTab !== "completed"
+                task.status !== "completed"
                   ? (id) => completeTaskMutation.mutate(id)
                   : undefined
               }
               onStartProgress={
-                activeTab === "backlog"
+                task.status === "backlog"
                   ? (id) => changeStatusMutation.mutate({ taskId: id, status: "in_progress" })
                   : undefined
               }
               onMoveToBacklog={
-                activeTab === "in_progress"
+                task.status === "in_progress"
                   ? (id) => changeStatusMutation.mutate({ taskId: id, status: "backlog" })
                   : undefined
               }
               onRestore={
-                activeTab === "completed"
+                task.status === "completed"
                   ? (id) => changeStatusMutation.mutate({ taskId: id, status: "in_progress" })
                   : undefined
               }
               onDelete={
-                activeTab === "completed"
+                task.status === "completed"
                   ? (id) => deleteTaskMutation.mutate(id)
                   : undefined
               }
             />
           </div>
         </div>
-        {task.isEpic && isExpanded && childTasksInTab.length > 0 && (
-          <div className="space-y-1.5 mt-1.5 mb-2 pl-2 border-l-2 border-violet-200 dark:border-violet-800 ml-4">
-            {childTasksInTab.map(child => renderTaskItem(child, true))}
-          </div>
-        )}
-        {task.isEpic && isExpanded && childTasksInTab.length === 0 && allChildren.length > 0 && (
-          <div className="ml-10 py-2 text-xs text-muted-foreground">
-            이 탭에 해당하는 하위 작업이 없습니다 (전체 {allChildren.length}개)
-          </div>
-        )}
       </div>
     );
   };
@@ -483,28 +483,28 @@ export default function Home() {
     const isExpanded = expandedEpics.has(task.id);
 
     return (
-      <div key={task.id} className="space-y-1.5">
+      <div key={task.id} className="space-y-1">
         <button
           type="button"
           onClick={() => handleSelectTask(task)}
-          className="w-full rounded-lg border bg-card p-3 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-muted/30"
+          className="w-full rounded-lg border bg-card p-2.5 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-muted/30"
+          data-testid={`board-task-${task.id}`}
         >
           <div className="flex items-center justify-between gap-2">
-            <Badge variant="outline" className={cn("px-1.5 text-[10px]", priority.className)}>{priority.label}</Badge>
-            <span className="text-[10px] font-mono text-primary">{task.ticketUrl ? `#${ticketNumber}` : ticketNumber}</span>
+            <span className="font-mono text-[11px] font-semibold text-primary">{task.ticketUrl ? `#${ticketNumber}` : ticketNumber}</span>
+            <Badge variant="outline" className={cn("shrink-0 px-1.5 text-[10px]", priority.className)}>{priority.label}</Badge>
           </div>
-          <div className="mt-2 flex items-start gap-1.5">
+          <div className="mt-1.5 flex items-start gap-1.5">
             {task.isEpic && childTasks.length > 0 && <span className="mt-0.5 text-violet-500">{isExpanded ? "▾" : "▸"}</span>}
-            <h3 className="text-sm font-semibold leading-5 line-clamp-2">{task.title}</h3>
+            <h3 className="text-sm font-medium leading-5 line-clamp-2">{task.title}</h3>
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground line-clamp-1">{task.description || "내용 미입력"}</p>
-          <div className="flex items-center justify-between gap-2 mt-2 text-[11px] text-muted-foreground">
-            <div className="flex items-center gap-2">
+          {(prCount > 0 || commentCount > 0 || childTasks.length > 0) && (
+            <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
               {prCount > 0 && <span className="flex items-center gap-1 text-primary"><GitPullRequest className="w-3 h-3" />{prCount}</span>}
               {commentCount > 0 && <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{commentCount}</span>}
+              {childTasks.length > 0 && <span className="ml-auto text-violet-600">하위 {childTasks.length}</span>}
             </div>
-            {task.isEpic && childTasks.length > 0 && <span className="text-violet-600">하위 {childTasks.length}</span>}
-          </div>
+          )}
         </button>
         {task.isEpic && childTasks.length > 0 && (
           <button type="button" onClick={() => toggleEpicExpanded(task.id)} className="w-full rounded border border-dashed border-violet-200 px-2 py-1.5 text-xs text-violet-600 hover:bg-violet-50 dark:border-violet-800 dark:hover:bg-violet-950/20">
@@ -513,7 +513,7 @@ export default function Home() {
         )}
         {task.isEpic && isExpanded && childTasks.length > 0 && (
           <div className="space-y-1.5 border-l-2 border-violet-200 pl-2 dark:border-violet-800">
-            {childTasks.map((child) => <button key={child.id} type="button" onClick={() => handleSelectTask(child)} className="w-full rounded border bg-background p-2 text-left hover:border-primary/40"><div className="flex items-center justify-between gap-2"><span className="text-xs font-medium line-clamp-1">{child.title}</span><Badge variant="outline" className="shrink-0 px-1 text-[9px]">{child.status === "backlog" ? "진행 전" : child.status === "in_progress" ? "작업 중" : child.status === "review" ? "검토 중" : "완료"}</Badge></div><p className="mt-1 text-[11px] text-muted-foreground line-clamp-1">{child.description || "내용 미입력"}</p></button>)}
+            {childTasks.map((child) => <button key={child.id} type="button" onClick={() => handleSelectTask(child)} className="w-full rounded border bg-background p-2 text-left hover:border-primary/40"><div className="flex items-center justify-between gap-2"><span className="text-xs font-medium line-clamp-1">{child.title}</span><Badge variant="outline" className="shrink-0 px-1 text-[9px]">{child.status === "backlog" ? "진행 전" : child.status === "in_progress" ? "진행 중" : "완료"}</Badge></div><p className="mt-1 text-[11px] text-muted-foreground line-clamp-1">{child.description || "내용 미입력"}</p></button>)}
           </div>
         )}
       </div>
@@ -521,27 +521,21 @@ export default function Home() {
   };
 
   const renderBoard = () => {
-    const query = searchQuery.trim().toLowerCase();
-    const boardTasks = query
-      ? tasks.filter((task) =>
-          task.title.toLowerCase().includes(query) ||
-          task.ticketNumber.toLowerCase().includes(query) ||
-          task.description?.toLowerCase().includes(query)
-        )
-      : tasks;
+    const boardTasks = tasks.filter(matchesTask);
+    const isTopLevelResult = (task: Task) => !task.parentEpicId || hasActiveFilters;
     const columns = [
-      { status: "backlog", label: "진행 전", className: "border-slate-300", tasks: boardTasks.filter((task) => task.status === "backlog" && !task.parentEpicId) },
-      { status: "in_progress", label: "작업 중", className: "border-primary/40", tasks: boardTasks.filter((task) => task.status === "in_progress" && !task.parentEpicId) },
-      { status: "review", label: "검토 중", className: "border-orange-300", tasks: boardTasks.filter((task) => task.status === "review" && !task.parentEpicId) },
-      { status: "completed", label: "완료", className: "border-emerald-300", tasks: visibleCompletedTasks.filter((task) => boardTasks.includes(task) && !task.parentEpicId) },
+      { status: "backlog", label: "진행 전", className: "border-slate-300", tasks: boardTasks.filter((task) => task.status === "backlog" && isTopLevelResult(task)) },
+      { status: "in_progress", label: "진행 중", className: "border-primary/40", tasks: boardTasks.filter((task) => task.status === "in_progress" && isTopLevelResult(task)) },
+      { status: "completed", label: "완료", className: "border-emerald-300", tasks: visibleCompletedTasks.filter((task) => boardTasks.includes(task) && isTopLevelResult(task)) },
     ];
 
     return (
-      <div className="overflow-x-auto pb-2">
-        <div className="grid min-w-[1000px] grid-cols-4 gap-4">
-          {columns.map((column) => (
-            <Card key={column.status} className={cn("flex h-[calc(100vh-240px)] min-h-[380px] flex-col border-t-2 bg-muted/20", column.className)}>
-              <div className="flex items-center justify-between gap-2 border-b px-3 py-3 bg-card/70">
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-3" data-testid="task-board">
+          {columns.map((column) => {
+            const expanded = expandedBoardColumns.has(column.status);
+            const visibleTasks = expanded ? column.tasks : column.tasks.slice(0, 5);
+            return <Card key={column.status} className={cn("min-w-0 border-t-2 bg-muted/20", column.className, activeTab !== column.status && "hidden lg:block")}>
+              <div className="flex items-center justify-between gap-2 border-b bg-card/70 px-3 py-3">
                 <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">{column.label}</h2><Badge variant="secondary" className="text-[10px]">{column.tasks.length}</Badge></div>
                 {column.status === "completed" && (
                   <select value={completedFilter} onChange={(event) => setCompletedFilter(event.target.value as "7d" | "30d" | "all")} onClick={(event) => event.stopPropagation()} className="h-7 rounded border bg-background px-1 text-[10px] text-muted-foreground">
@@ -549,15 +543,69 @@ export default function Home() {
                   </select>
                 )}
               </div>
-              <div className="flex-1 space-y-2 overflow-y-auto p-2.5">
-                {column.tasks.length > 0 ? column.tasks.map(renderBoardCard) : <p className="py-8 text-center text-xs text-muted-foreground">작업이 없습니다</p>}
+              <div className="space-y-2 p-2">
+                {column.tasks.length > 0 ? visibleTasks.map(renderBoardCard) : <p className="py-8 text-center text-xs text-muted-foreground">작업이 없습니다</p>}
+                {column.tasks.length > 5 && (
+                  <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setExpandedBoardColumns((current) => {
+                    const next = new Set(current);
+                    expanded ? next.delete(column.status) : next.add(column.status);
+                    return next;
+                  })} data-testid={`button-more-${column.status}`}>
+                    {expanded ? "접기" : `나머지 ${column.tasks.length - 5}건 보기`}
+                  </Button>
+                )}
               </div>
-            </Card>
-          ))}
-        </div>
+            </Card>;
+          })}
       </div>
     );
   };
+
+  const renderTaskDetail = () => selectedTask ? (
+              <TaskDetail
+                task={selectedTask}
+                comments={getCommentsForTask(selectedTask.id)}
+                taskPrs={getPrsForTask(selectedTask.id)}
+                relatedTasks={getRelatedTasks(selectedTask.id)}
+                allTasks={tasks}
+                childTasks={getChildTasks(selectedTask.id)}
+                epicTask={getEpicTask(selectedTask.parentEpicId)}
+                onBack={() => setSelectedTask(null)}
+                onAddComment={(taskId, content) =>
+                  addCommentMutation.mutate({ taskId, content })
+                }
+                onDeleteComment={(commentId) =>
+                  deleteCommentMutation.mutate(commentId)
+                }
+                onComplete={(id) => {
+                  completeTaskMutation.mutate(id);
+                  setSelectedTask(null);
+                }}
+                onAddRelation={(sourceId, targetId) =>
+                  addRelationMutation.mutate({ sourceTaskId: sourceId, targetTaskId: targetId })
+                }
+                onRemoveRelation={(sourceId, targetId) =>
+                  removeRelationMutation.mutate({ sourceTaskId: sourceId, targetTaskId: targetId })
+                }
+                onSelectRelated={(task) => setSelectedTask(task)}
+                onChangeStatus={(taskId, status) =>
+                  changeStatusMutation.mutate({ taskId, status })
+                }
+                onUpdateTask={(taskId, data) =>
+                  updateTaskMutation.mutate({ taskId, data })
+                }
+                onCreateAndRelate={(sourceTaskId, data) =>
+                  createAndRelateMutation.mutate({ sourceTaskId, data })
+                }
+                onAddPr={(taskId, url) => addPrMutation.mutate({ taskId, url })}
+                onRemovePr={(prId) => removePrMutation.mutate(prId)}
+                onTogglePrReviewed={(prId, reviewed) =>
+                  togglePrReviewedMutation.mutate({ prId, reviewed })
+                }
+                isAddingComment={addCommentMutation.isPending}
+                isCreatingRelation={createAndRelateMutation.isPending}
+              />
+  ) : null;
 
   return (
     <div className="flex h-dvh flex-col bg-background">
@@ -630,41 +678,40 @@ export default function Home() {
         <div className="max-w-6xl mx-auto h-full flex">
           <div
             className={cn(
-              "min-w-0 flex-1 flex flex-col h-full border-r",
-              isMobile && showDetail && "hidden"
+              "min-w-0 flex-1 flex flex-col h-full",
+              viewMode === "list" && "border-r",
+              viewMode === "list" && isMobile && showDetail && "hidden"
             )}
           >
             <div className="p-4 space-y-3 shrink-0">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="작업 검색... (제목, 티켓번호)"
+                  placeholder="전체 작업 검색 (제목, 티켓번호, 내용, URL)"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 pr-9"
                   data-testid="input-search"
                 />
+                {searchQuery && <button type="button" onClick={() => setSearchQuery("")} aria-label="검색어 지우기" className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>}
               </div>
 
-              <div className="flex items-center justify-between gap-3">
-                <p className="min-w-0 text-xs text-muted-foreground">{viewMode === "board" ? "상태별 작업 흐름" : "상태별 작업 목록"}</p>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="shrink-0 gap-1.5" aria-label="보기 설정" data-testid="button-view-settings">
-                      <Settings2 className="h-3.5 w-3.5" />보기 설정
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuRadioGroup value={viewMode} onValueChange={(value) => setViewMode(value as "list" | "board")}>
-                      <DropdownMenuRadioItem value="list"><List className="mr-2 h-4 w-4" />목록</DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="board"><Columns3 className="mr-2 h-4 w-4" />보드</DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="min-w-0 text-xs text-muted-foreground">{query ? `전체 검색 · ${filteredTasks.length}건` : viewMode === "board" ? "상태별 작업 흐름" : "상태별 작업 목록"}</p>
+                <div className="flex items-center gap-1 rounded-md border bg-muted/40 p-0.5" role="group" aria-label="보기 방식">
+                  <Button type="button" size="sm" variant={viewMode === "list" ? "secondary" : "ghost"} className="h-8 gap-1.5 px-2.5" onClick={() => setViewMode("list")} data-testid="button-list-view"><ListTodo className="h-3.5 w-3.5" />목록</Button>
+                  <Button type="button" size="sm" variant={viewMode === "board" ? "secondary" : "ghost"} className="h-8 gap-1.5 px-2.5" onClick={() => setViewMode("board")} data-testid="button-board-view"><Columns3 className="h-3.5 w-3.5" />보드</Button>
+                </div>
               </div>
 
-              {viewMode === "list" && <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid h-auto min-h-10 w-full grid-cols-4">
+              <div className="flex flex-wrap items-center gap-1.5" aria-label="빠른 필터">
+                <Button type="button" size="sm" variant={highPriorityOnly ? "default" : "outline"} className="h-7 px-2 text-xs" onClick={() => setHighPriorityOnly((value) => !value)} aria-pressed={highPriorityOnly}>높음 우선순위</Button>
+                <Button type="button" size="sm" variant={todoOnly ? "default" : "outline"} className="h-7 px-2 text-xs" onClick={() => setTodoOnly((value) => !value)} aria-pressed={todoOnly}>Todo만</Button>
+                {(highPriorityOnly || todoOnly) && <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setHighPriorityOnly(false); setTodoOnly(false); }}>필터 초기화</Button>}
+              </div>
+
+              {((viewMode === "list" && !query) || (viewMode === "board" && isMobile)) && <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid h-auto min-h-10 w-full grid-cols-3">
                   <TabsTrigger
                     value="backlog"
                     className="min-w-0 gap-1 px-1 text-[11px] sm:gap-1.5 sm:px-3 sm:text-sm"
@@ -682,20 +729,9 @@ export default function Home() {
                     data-testid="tab-in-progress"
                   >
                     <PlayCircle className="hidden h-3.5 w-3.5 lg:block" />
-                    작업 중
+                    진행 중
                     <Badge variant="secondary" className="hidden px-1.5 text-[10px] lg:inline-flex">
                       {inProgressTasks.length}
-                    </Badge>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="review"
-                    className="min-w-0 gap-1 px-1 text-[11px] sm:gap-1.5 sm:px-3 sm:text-sm"
-                    data-testid="tab-review"
-                  >
-                    <Eye className="hidden h-3.5 w-3.5 lg:block" />
-                    검토 중
-                    <Badge variant="secondary" className="hidden px-1.5 text-[10px] lg:inline-flex">
-                      {reviewTasks.length}
                     </Badge>
                   </TabsTrigger>
                   <TabsTrigger
@@ -727,8 +763,6 @@ export default function Home() {
                       <Inbox className="w-6 h-6 text-muted-foreground" />
                     ) : activeTab === "in_progress" ? (
                       <PlayCircle className="w-6 h-6 text-muted-foreground" />
-                    ) : activeTab === "review" ? (
-                      <Eye className="w-6 h-6 text-muted-foreground" />
                     ) : (
                       <CheckCircle2 className="w-6 h-6 text-muted-foreground" />
                     )}
@@ -739,9 +773,7 @@ export default function Home() {
                       : activeTab === "backlog"
                       ? "진행 전 작업이 없습니다"
                       : activeTab === "in_progress"
-                      ? "작업 중인 항목이 없습니다"
-                      : activeTab === "review"
-                      ? "검토 중인 작업이 없습니다"
+                      ? "진행 중인 항목이 없습니다"
                       : "완료된 작업이 없습니다"}
                   </p>
                   {!searchQuery && activeTab !== "completed" && (
@@ -758,8 +790,45 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {filteredTasks.map((task) => renderTaskItem(task))}
+                <div data-testid="task-index">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">{listGroups.length}개 범주 · {filteredTasks.length}개 작업</p>
+                    <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={toggleAllGroups} data-testid="button-toggle-all-groups">
+                      {allGroupsExpanded ? "모두 접기" : "모두 펼치기"}
+                    </Button>
+                  </div>
+                  <div className="space-y-2.5">
+                    {listGroups.map((group, index) => {
+                      const expanded = isGroupExpanded(group.key);
+                      const highCount = group.tasks.filter((task) => task.priority === "high").length;
+                      const preview = group.tasks.map((task) => task.title.replace(/^\[[^\]]+\]\s*/, "").trim()).filter(Boolean).slice(0, 2).join(" · ");
+                      return (
+                        <section key={group.key} className="overflow-hidden rounded-lg border bg-card" data-testid={`task-group-${group.key}`}>
+                          <div className="flex min-w-0 items-center gap-1 px-3 py-2.5 sm:px-4">
+                            <button type="button" onClick={() => toggleGroup(group.key)} aria-expanded={expanded} aria-controls={`group-items-${index}`} className="flex min-w-0 flex-1 items-center gap-2.5 text-left" data-testid={`button-group-${group.key}`}>
+                              {expanded ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                              <FolderOpen className={cn("h-4 w-4 shrink-0", group.kind === "epic" ? "text-violet-500" : "text-primary/70")} />
+                              <span className="min-w-0 flex-1">
+                                <span className="flex flex-wrap items-center gap-1.5">
+                                  <span className="text-sm font-semibold leading-5">{group.label}</span>
+                                  {group.kind === "epic" && <span className="text-[10px] text-violet-600 dark:text-violet-400">Epic</span>}
+                                </span>
+                                {!expanded && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{preview}</span>}
+                              </span>
+                              {highCount > 0 && <span className="hidden shrink-0 text-[11px] text-red-600 dark:text-red-400 sm:inline">높음 {highCount}</span>}
+                              <Badge variant="secondary" className="shrink-0 tabular-nums">{group.tasks.length}</Badge>
+                            </button>
+                            {group.epic && !group.tasks.some((task) => task.id === group.epic!.id) && (
+                              <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={() => handleSelectTask(group.epic!)}>Epic 상세</Button>
+                            )}
+                          </div>
+                          {expanded && <div id={`group-items-${index}`} className="divide-y border-t bg-background/50">
+                            {group.tasks.map(renderTaskItem)}
+                          </div>}
+                        </section>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -768,53 +837,11 @@ export default function Home() {
           <div
             className={cn(
               "w-full md:w-[420px] lg:w-[480px] shrink-0 bg-card",
-              isMobile ? (showDetail ? "block" : "hidden") : (showDetail ? "block" : "hidden lg:block")
+              viewMode === "board" ? "hidden" : isMobile ? (showDetail ? "block" : "hidden") : (showDetail ? "block" : "hidden lg:block")
             )}
           >
-            {selectedTask ? (
-              <TaskDetail
-                task={selectedTask}
-                comments={getCommentsForTask(selectedTask.id)}
-                taskPrs={getPrsForTask(selectedTask.id)}
-                relatedTasks={getRelatedTasks(selectedTask.id)}
-                allTasks={tasks}
-                childTasks={getChildTasks(selectedTask.id)}
-                epicTask={getEpicTask(selectedTask.parentEpicId)}
-                onBack={() => setSelectedTask(null)}
-                onAddComment={(taskId, content) =>
-                  addCommentMutation.mutate({ taskId, content })
-                }
-                onDeleteComment={(commentId) =>
-                  deleteCommentMutation.mutate(commentId)
-                }
-                onComplete={(id) => {
-                  completeTaskMutation.mutate(id);
-                  setSelectedTask(null);
-                }}
-                onAddRelation={(sourceId, targetId) =>
-                  addRelationMutation.mutate({ sourceTaskId: sourceId, targetTaskId: targetId })
-                }
-                onRemoveRelation={(sourceId, targetId) =>
-                  removeRelationMutation.mutate({ sourceTaskId: sourceId, targetTaskId: targetId })
-                }
-                onSelectRelated={(task) => setSelectedTask(task)}
-                onChangeStatus={(taskId, status) =>
-                  changeStatusMutation.mutate({ taskId, status })
-                }
-                onUpdateTask={(taskId, data) =>
-                  updateTaskMutation.mutate({ taskId, data })
-                }
-                onCreateAndRelate={(sourceTaskId, data) =>
-                  createAndRelateMutation.mutate({ sourceTaskId, data })
-                }
-                onAddPr={(taskId, url) => addPrMutation.mutate({ taskId, url })}
-                onRemovePr={(prId) => removePrMutation.mutate(prId)}
-                onTogglePrReviewed={(prId, reviewed) =>
-                  togglePrReviewedMutation.mutate({ prId, reviewed })
-                }
-                isAddingComment={addCommentMutation.isPending}
-                isCreatingRelation={createAndRelateMutation.isPending}
-              />
+            {viewMode === "list" && (selectedTask ? (
+              renderTaskDetail()
             ) : (
               !isMobile && (
                 <div className="h-full overflow-y-auto p-4 space-y-4">
@@ -823,10 +850,17 @@ export default function Home() {
                   <ReplitUsage />
                 </div>
               )
-            )}
+            ))}
           </div>
         </div>
       </div>
+
+      <Sheet open={viewMode === "board" && showDetail} onOpenChange={(open) => { if (!open) setSelectedTask(null); }}>
+        <SheetContent side="right" className="w-full p-0 sm:w-[520px] sm:max-w-[520px]">
+          <SheetTitle className="sr-only">작업 상세</SheetTitle>
+          {viewMode === "board" && renderTaskDetail()}
+        </SheetContent>
+      </Sheet>
 
       <CreateTaskDialog
         open={createDialogOpen}
